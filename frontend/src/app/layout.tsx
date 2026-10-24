@@ -11,6 +11,7 @@ import './cypher-motion.css';
 import './google-permissions.css';
 import './cypher-store.css';
 import './cypher-loading.css';
+import './cypher-reference.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {

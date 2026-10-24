@@ -139,6 +139,7 @@ function quickStart(env, onStart, initialScope = 'local') {
     './cipher/BinaryLens': { __esModule: true, default: 'binary-lens' },
     './cipher/BinaryLens': { __esModule: true, default: 'binary-lens' },
     './cipher/RecentWork': { RecentWork: 'recent-work' },
+    '../lib/attachments': { readTaskAttachments: async files => files.map(file => ({ name: file.name, mime: 'text/plain', data: 'Zml4dHVyZQ==' })) },
   }, { ...env.globals, React: view.react.default });
   view.mount(() => QuickStart({ draftScope, options: { routing: 'auto', provider: 'openai', model: 'gpt-6.1-sol' },
     onStart, onOptions() {}, onCreateBot() {}, onCreateRoom() {}, onOpenLounge: async () => {} }));

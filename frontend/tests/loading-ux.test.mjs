@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { environment, renderer, load, deferred, find, textOf, button } from './support/component-harness.mjs';
 
-function workspace() {
+function workspace(search = '') {
   const env = environment(), view = renderer(env), pending = deferred();
-  env.window.location = { search: '' };
+  env.window.location = { search };
   const names = ['BotRoster','SidebarShell','ChatPanel','BotCreator','PluginPanel','GoalsPanel','ChannelsPanel','WorkspaceSetup','RoomCreator','CommandPalette','WorkspaceHub','ComputerPanel'];
   const imports = Object.fromEntries(names.flatMap(name => [['../components/'+name, {[name]:name}], ['./'+name, {[name]:name}]]));
   imports['./PanelBoundary'] = { PanelBoundary:'panel-boundary' };
@@ -28,16 +28,17 @@ test('slow startup cannot navigate away after the user chooses New task',async()
   view.unmount();
 });
 
-test('startup still restores the default team when the user has not navigated',async()=>{
+test('startup keeps the task home visible while existing rooms remain available',async()=>{
   const {view,pending}=workspace();pending.resolve([lounge]);await view.flush();
-  assert.equal(find(view.tree,node=>node.type==='ChatPanel').props.room.id,lounge.id);
+  assert.equal(find(view.tree,node=>node.type==='ChatPanel').props.room,null);
+  assert.equal(find(view.tree,node=>node.type==='BotRoster').props.rooms[0].id,lounge.id);
   assert.equal(find(view.tree,node=>node.type==='BotRoster').props.loadingRooms,false);
   view.unmount();
 });
 
 test('pending agents and rooms never announce empty data',()=>{
   const env=environment(),view=renderer(env);
-  const {BotRoster}=load('../src/components/BotRoster.tsx',{react:view.react,'./LoadingState':{LoadingState:'loading-state'},'./BotAvatar':{},'../lib/api':{request:async()=>({})}},{...env.globals,React:view.react.default});
+  const {BotRoster}=load('../src/components/BotRoster.tsx',{react:view.react,'./LoadingState':{LoadingState:'loading-state'},'./AccountMenu':{AccountMenu:'account-menu'},'./BotAvatar':{},'../lib/api':{request:async()=>({})}},{...env.globals,React:view.react.default});
   view.mount(()=>BotRoster({bots:[],rooms:[],loadingAgents:true,loadingRooms:true}));
   assert.doesNotMatch(textOf(view.tree),/Your team starts here|No team rooms yet/);
   assert.ok(find(view.tree,node=>node.type==='loading-state'&&node.props.label==='Loading your agents…'));
@@ -60,4 +61,24 @@ test('ghost shapes are hidden from assistive technology and have one descriptive
   const node=LoadingState({label:'Loading conversation…',variant:'messages'});
   assert.equal(node.props.role,'status');assert.equal(node.props['aria-label'],'Loading conversation…');
   assert.ok(find(node,item=>item.props?.['aria-hidden']==='true'));
+});
+
+
+test('an explicit saved conversation link still opens the existing team after startup',async()=>{
+  const {view,pending}=workspace('?conversation=synthetic-lounge');
+  pending.resolve([lounge]);await view.flush();await view.flush();
+  assert.equal(find(view.tree,node=>node.type==='ChatPanel').props.room.id,lounge.id);
+  view.unmount();
+});
+
+test('Apps opens inside the frame and preserves the mounted conversation before returning home',async()=>{
+  const {view,pending}=workspace('?plugins=1');await view.flush();
+  assert.ok(find(view.tree,node=>node.props?.embedded===true));
+  assert.equal(find(view.tree,node=>node.props?.className==='workspace-conversation').props.hidden,true);
+  assert.equal(find(view.tree,node=>node.type==='BotRoster').props.activeView,'apps');
+  find(view.tree,node=>node.type==='BotRoster').props.onHome();await view.flush();
+  pending.resolve([lounge]);await view.flush();
+  assert.equal(find(view.tree,node=>node.props?.className==='workspace-conversation').props.hidden,false);
+  assert.equal(find(view.tree,node=>node.type==='ChatPanel').props.room,null);
+  view.unmount();
 });

@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { request } from '../lib/api';
+import { companyWebsite } from '../lib/company-website';
 import { CYPHER_VOICE_INTRO } from '../lib/cypher-voice';
 import BinaryLens from './cipher/BinaryLens';
-import CipherIntro from './cipher/CipherIntro';
 import CypherMark from './cipher/CypherMark';
+import WorkflowShell from './WorkflowShell';
 import './prospecting-workspace.css';
 
 type Draft = { subject: string; body: string; status: 'local_draft'; recipient: null; review_required: boolean; source_urls: string[] };
@@ -155,8 +156,10 @@ export default function ProspectingWorkspace() {
   function understand(event: FormEvent) {
     event.preventDefault();
     void perform('profile', async signal => {
+      const website = companyWebsite(url);
+      setUrl(website);
       const next: Profile = await request('/prospecting/profile', {
-        method: 'POST', signal, body: JSON.stringify({ url: url.trim() }),
+        method: 'POST', signal, body: JSON.stringify({ url: website }),
       }, 25000);
       if (signal.aborted) return;
       setProfile(next);
@@ -292,16 +295,7 @@ export default function ProspectingWorkspace() {
     setRun(next); setSelected(''); setDraft(null); setPollError(''); setError('');
   }
 
-  return <main className="cipher cx-prospecting">
-    <CipherIntro />
-    <header className="cx-toolbar">
-      <a href="/" className="cx-word"><CypherMark className="cx-brand-image" decorative level={voiceLevel}/><span>Cypher</span></a>
-      <nav className="cx-nav" aria-label="Main navigation">
-        <a href="/workspace?plugins=1">Plugins</a>
-        <a href="/workspace">Workspace</a>
-      </nav>
-    </header>
-
+  return <WorkflowShell section="companies"><main className="cipher cx-prospecting">
     <section className="cx-hero cx-prospect-hero">
       <BinaryLens className="cx-lens" active={pending === 'profile' || active || voiceState === 'loading' || voiceState === 'playing'} level={voiceLevel} label="Cypher lens"/>
       <h1>Find your next customers</h1>
@@ -315,14 +309,14 @@ export default function ProspectingWorkspace() {
         {voiceState === 'setup' ? <span className="cx-voice-note" role="status">Add your ElevenLabs API key in Vercel to enable this.</span> : null}
         {voiceError ? <span className="cx-voice-note" role="status">{voiceError}</span> : null}
       </div>
-      <form className="cx-command" onSubmit={understand}>
+      <form className="cx-command" onSubmit={understand} noValidate>
         <div className="cx-group">
-          <label className="cx-field" htmlFor="prospecting-url"><span>Company site</span><input id="prospecting-url" type="url" required maxLength={2048} placeholder="https://yourcompany.com" value={url} onChange={event => { setUrl(event.target.value); setProfile(null); setConfirmed(false); }} disabled={!!pending}/></label>
+          <label className="cx-field" htmlFor="prospecting-url"><span>Company site</span><input id="prospecting-url" type="text" inputMode="url" autoComplete="url" required maxLength={2048} placeholder="yourcompany.com" value={url} aria-invalid={error ? true : undefined} aria-describedby={error ? 'company-site-error' : undefined} onChange={event => { setUrl(event.target.value); setProfile(null); setConfirmed(false); setError(''); }} disabled={!!pending}/></label>
           <button type="submit" className="cx-run" disabled={!!pending}>{pending === 'profile' ? <><span className="cx-spinner" aria-hidden="true"/>Reading site…</> : <>Read company site<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></>}</button>
         </div>
         <small className="cx-helper">Reads public HTTPS pages that allow automated access. Your extracted offer stays editable before research.</small>
       </form>
-      {error && <div role="alert" className="cx-error">{error}{/sign in|session/i.test(error) ? <> <a href="/login">Sign in</a></> : null}</div>}
+      {error && <div id="company-site-error" role="alert" className="cx-error">{error}{/sign in|session/i.test(error) ? <> <a href="/login">Sign in</a></> : null}</div>}
     </section>
 
     <section className="cx-prospect-flow" aria-label="Prospecting workflow">
@@ -387,6 +381,6 @@ export default function ProspectingWorkspace() {
         <div className="cx-history"><div className="cx-log-head"><h2 className="cx-label">Recent research</h2></div>{runs.length === 0 ? <p>No saved runs yet.</p> : runs.slice(0, 6).map(item => <button key={item.id} type="button" className={item.id === runId ? 'is-selected' : ''} disabled={!!pending} onClick={() => selectRun(item)} aria-pressed={item.id === runId}><strong>{item.market}</strong><span>{statusLabel(item.status)} · {item.results.length} candidates</span></button>)}</div>
       </aside>
     </section>
-    <footer className="cx-footer"><span>Research runs through Open GrokBot’s authenticated backend.</span><a href="/workspace">Open full workspace</a></footer>
-  </main>;
+    <footer className="cx-footer"><span>Research and drafts are saved to your workspace.</span><a href="/workspace">Open workspace</a></footer>
+  </main></WorkflowShell>;
 }

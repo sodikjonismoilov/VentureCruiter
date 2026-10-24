@@ -54,6 +54,7 @@ function quickStart(onStart, initialOptions = { routing: 'auto', provider: 'open
     './cipher/BinaryLens': { __esModule: true, default: 'binary-lens' },
     './cipher/CypherMark': { __esModule: true, default: 'cypher-mark' },
     './cipher/RecentWork': { RecentWork: 'recent-work' },
+    '../lib/attachments': { readTaskAttachments: async files => files.map(file => ({ name: file.name, mime: 'text/plain', data: 'Zml4dHVyZQ==' })) },
   }, { React: runtime.react, localStorage: { setItem() {} } });
   return () => runtime.render(() => QuickStart({
     options, onOptions: next => { options = next; }, onStart,
@@ -164,4 +165,24 @@ test('image output is included in the task sent to the backend', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.output, 'image');
   assert.equal(calls[0].options.aspect_ratio, '16:9');
+});
+
+
+test('home file-only tasks forward attachments and retain them after a failed start', async () => {
+  const calls=[];
+  const render=quickStart(async (prompt, options, attachments)=>{
+    calls.push({prompt,options,attachments});
+    if(calls.length===1)throw Error('Temporary connection failure.');
+  });
+  find(render(),node=>node.type==='input'&&node.props.type==='file').props.onChange({target:{files:[{name:'brief.txt',size:7,type:'text/plain'}]}});
+  await new Promise(setImmediate);
+  await submit(render());
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].attachments[0].name,'brief.txt');
+  assert.equal(calls[0].attachments[0].data,'Zml4dHVyZQ==');
+  assert.equal(calls[0].options.output,'text');
+  assert.ok(find(render(),node=>node.props?.['aria-label']==='Remove brief.txt'));
+  await submit(render());
+  assert.equal(calls.length,2);
+  assert.deepEqual(calls[1].attachments,calls[0].attachments);
 });
