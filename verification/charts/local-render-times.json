@@ -1,0 +1,25 @@
+{
+  "timings": [
+    {
+      "type": "bar",
+      "render_ms": 38.0
+    },
+    {
+      "type": "line",
+      "render_ms": 28.6
+    },
+    {
+      "type": "area",
+      "render_ms": 29.2
+    },
+    {
+      "type": "scatter",
+      "render_ms": 24.5
+    },
+    {
+      "type": "pie",
+      "render_ms": 35.7
+    }
+  ],
+  "note": "Local illustrative render only, excluding model/queue/network latency."
+}

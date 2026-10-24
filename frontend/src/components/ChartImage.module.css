@@ -1,0 +1,6 @@
+.chart { display: block; max-width: 680px; margin-block: 12px; }
+.image { display: block; width: 100%; height: auto; background: #fff; }
+.caption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-top: 8px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.caption a { min-height: 32px; display: inline-flex; align-items: center; text-underline-offset: 3px; }
+.caption a:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 3px; }
+@media (max-width: 600px) { .caption a { min-height: 44px; } }
