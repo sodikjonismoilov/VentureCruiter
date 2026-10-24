@@ -109,7 +109,8 @@ async def test_role_handoffs_resolve_only_one_specialist(ambiguous):
 
 
 @pytest.mark.asyncio
-async def test_role_handoffs_persist_specialists_and_reach_final_synthesis(workspace, monkeypatch):
+@pytest.mark.parametrize('planner_handoffs', [True, False])
+async def test_role_handoffs_persist_specialists_and_reach_final_synthesis(workspace, monkeypatch, planner_handoffs):
     import asyncio
     from contextlib import suppress
     from app.services import worker
@@ -133,7 +134,8 @@ async def test_role_handoffs_persist_specialists_and_reach_final_synthesis(works
         prompt = messages[0]['content']
         calls.append(prompt)
         if 'Plan this task briefly.' in prompt:
-            content = 'HANDOFF[Researcher: Calculate 17 + 25.]\nHANDOFF[Reviewer: Independently verify the sum.]'
+            content = ('HANDOFF[Researcher: Calculate 17 + 25.]\nHANDOFF[Reviewer: Independently verify the sum.]'
+                       if planner_handoffs else 'I need the specialist findings before I can synthesize them.')
         elif 'The assigned specialist work has finished.' in prompt:
             history = '\n'.join(str(m['content']) for m in messages)
             assert 'Teammate Backend Check Researcher: 42' in history
@@ -145,7 +147,7 @@ async def test_role_handoffs_persist_specialists_and_reach_final_synthesis(works
 
     monkeypatch.setattr(LLMGateway, 'complete', complete)
     queued = await client.post('/api/conversations/'+room['id']+'/messages', headers=headers,
-        json={'sender_type':'user', 'content':'Verify 17 + 25.', 'options':{'allow_tools':False, 'max_iterations':2}})
+        json={'sender_type':'user', 'content':'Researcher: calculate 17 + 25. Reviewer: independently verify it.', 'options':{'allow_tools':False, 'max_iterations':2}})
     assert queued.status_code == 202
     task = asyncio.create_task(worker.run_worker())
     try:
