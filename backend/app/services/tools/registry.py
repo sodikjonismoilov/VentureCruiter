@@ -199,10 +199,17 @@ class ToolRegistry:
             return any(t['plugin_id'] == arguments.get('plugin_id') and t['name'] == arguments.get('tool_name') and t.get('read_only') for t in getattr(self, '_plugin_manifest', []))
         return name in {'read_file', 'list_directory', 'search_files', 'search_web',
                         'search_chat_history', 'list_context', 'forget_context', 'consult_specialist', 'plugin_search', 'publish_file',
-                        'complete_goal', 'remember_context', 'get_vc_investor_match', 'prepare_vc_outreach', 'search_vc_founders'}
+                        'complete_goal', 'remember_context', 'get_vc_investor_match', 'prepare_vc_outreach', 'search_vc_founders', 'create_chart'}
 
     def register_default_tools(self):
         """Register all built-in tools."""
+        from app.services.tools.charts import create_chart, CHART_PARAMETERS
+        self.register(
+            'create_chart',
+            'Create accurate bar, line, area, scatter or pie charts from user-provided or verified tool data. Prefer this to image generation for numerical charts. Returns a PNG preview, accessible SVG and CSV. Mark demonstration numbers illustrative.',
+            CHART_PARAMETERS,
+            create_chart,
+        )
         from app.services.tools.investor_funnel import start_investor_match, get_investor_match, label_investor_match, prepare_investor_outreach, search_vc_founders
         thesis_properties = {
             "direction": {"type": "string", "enum": ["investors_for_thesis", "companies_for_thesis"], "description": "investors_for_thesis finds VCs for a company; companies_for_thesis finds SEC filing prospects for a VC mandate."},
@@ -530,7 +537,9 @@ class ToolRegistry:
         # Map tool category names to tool prefixes
         category_map = {
             "plugins": "plugin_",
-            "media": ["generate_image"],
+            "media": ["generate_image", "create_chart"],
+            "charts": ["create_chart"],
+            "visualization": ["create_chart"],
             "browser": ["search_web", "browse_url", "browser_click", "browser_type", "browser_screenshot", "browser_extract", "browser_fill_form", *vc_research],
             "prospecting": [*vc_research, "label_vc_investor_match"],
             "shell": "shell",
