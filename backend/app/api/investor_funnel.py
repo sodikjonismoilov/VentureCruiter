@@ -117,6 +117,13 @@ async def start_founder_backfill(tenant=Depends(authenticated), db: AsyncSession
         raise HTTPException(401, "Sign in with a verified email address before importing SEC public data.")
     current = await db.get(FounderArchiveBackfill, "historical")
     if current and current.status == "completed":
+        # Re-run the terminal coverage check from the existing cursor.
+        current.requested_by = tenant
+        current.status = "pending"
+        current.error = None
+        current.completed_at = None
+        await db.commit()
+        await db.refresh(current)
         return founder_archive_state(current)
     if current and current.status in {"pending", "running"}:
         return founder_archive_state(current)

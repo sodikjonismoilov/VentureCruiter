@@ -180,7 +180,7 @@ export default function VcProspectingWorkspace() {
     try {
       const history: FounderHistory = await request('/prospecting/investors/founders/backfill', { method: 'POST' }, 45000);
       setData(current => current ? { ...current, database: { ...current.database, historical: history } } : current);
-      if (history.status === 'completed') setNotice('The historical SEC Form D archive is already indexed.');
+      if (history.status === 'completed') setNotice('SEC archive coverage is already complete.');
       else if (history.status === 'running' || history.status === 'pending') setNotice('Historical SEC archives are being indexed in resumable quarterly batches.');
     } catch (failure) { setError(errorMessage(failure)); }
     finally { setStartingHistory(false); }
@@ -237,8 +237,8 @@ export default function VcProspectingWorkspace() {
         {data?.database.historical.status === 'failed' && data.database.historical.error ? <p className="vc-inline-error">{data.database.historical.error}</p> : null}
         {data?.database.historical.status === 'completed' ? <p className="vc-history-progress">Complete · {data.database.quarter_count.toLocaleString()} SEC quarters indexed</p> : null}
       </div>
-      <button type="button" onClick={() => void startHistoricalImport()} disabled={startingHistory || ['pending', 'running', 'completed'].includes(data?.database.historical.status || 'idle')}>
-        {startingHistory ? 'Queueing…' : data?.database.historical.status === 'running' || data?.database.historical.status === 'pending' ? 'Historical import in progress' : data?.database.historical.status === 'completed' ? 'Historical index complete' : data?.database.historical.status === 'failed' ? 'Resume historical import' : 'Import SEC history'}
+      <button type="button" onClick={() => void startHistoricalImport()} disabled={startingHistory || ['pending', 'running'].includes(data?.database.historical.status || 'idle')}>
+        {startingHistory ? 'Queueing…' : data?.database.historical.status === 'running' || data?.database.historical.status === 'pending' ? 'Historical import in progress' : data?.database.historical.status === 'completed' ? 'Check SEC archive coverage' : data?.database.historical.status === 'failed' ? 'Resume historical import' : 'Import SEC history'}
       </button>
     </section>
 

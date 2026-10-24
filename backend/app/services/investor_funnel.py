@@ -154,14 +154,22 @@ def _file_date(digits: str):
 def _formd_archives(page: bytes):
     archives = {}
     for link in _links(page):
-        if not re.search(r"_d\.zip(?:$|\?)", link, re.I):
+        # Older SEC archives may have a numeric suffix (for example
+        # 2013q1_d_0.zip). Normalize those names to the canonical quarter so
+        # each filing quarter is imported exactly once.
+        if not re.search(r"_d(?:_\d+)?\.zip(?:$|\?)", link, re.I):
             continue
         url = urljoin(FORMD_PAGE, link)
         _validate_sec_url(url)
-        name = Path(urlsplit(url).path).name
-        match = re.search(r"(\d{4})q([1-4])_d\.zip$", name, re.I)
+        file_name = Path(urlsplit(url).path).name
+        match = re.search(r"(\d{4})q([1-4])_d(?:_(\d+))?\.zip$", file_name, re.I)
         if match:
-            archives[name] = {"name": name, "url": url, "year": int(match.group(1)), "quarter": int(match.group(2))}
+            name = f"{match.group(1)}q{match.group(2)}_d.zip"
+            existing = archives.get(name)
+            # Prefer the canonical unsuffixed file when the SEC page lists
+            # both forms for one quarter.
+            if existing is None or match.group(3) is None:
+                archives[name] = {"name": name, "url": url, "year": int(match.group(1)), "quarter": int(match.group(2))}
     return sorted(archives.values(), key=lambda item: (item["year"], item["quarter"]), reverse=True)
 
 
@@ -1077,11 +1085,26 @@ async def tick_founder_archive(sessions, pulse=None):
             return True
 
         if cursor >= len(quarter_files):
+            # Re-read the archive page after the first pass. The SEC uses
+            # suffixed names for some older quarters, which the original
+            # listing omitted.
+            archives = await _await_with_pulse(_list_formd_archives(contact_email), pulse)
             async with sessions() as db:
-                job = await db.get(FounderArchiveBackfill, "historical")
+                job = (await db.execute(select(FounderArchiveBackfill).where(
+                    FounderArchiveBackfill.id == "historical",
+                ).with_for_update())).scalar_one_or_none()
                 if job and job.status == "running":
-                    job.status = "completed"
-                    job.completed_at = utcnow()
+                    cache = await db.get(InvestorUniverseSnapshot, SNAPSHOT_ID)
+                    processed = set(cache.quarters or []) if cache else set()
+                    processed.update(item["name"] for item in quarter_files[:cursor])
+                    queued = {item["name"] for item in quarter_files[cursor:]}
+                    gaps = [item for item in archives if item["name"] not in processed and item["name"] not in queued]
+                    if gaps:
+                        job.quarter_files = [*quarter_files, *gaps]
+                        job.completed_at = None
+                    else:
+                        job.status = "completed"
+                        job.completed_at = utcnow()
                     await db.commit()
             return True
 
