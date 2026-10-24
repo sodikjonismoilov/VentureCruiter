@@ -1,39 +1,46 @@
-# Cypher · VentureCruiter
+# Cypher
 
-Cypher's agent workspace, conversations, voice, connected tools, and prospecting application. The existing `lead-funnel/` command-line project is preserved.
+Describe what you want to accomplish. Cypher coordinates AI models, connected apps, and background work in one workspace.
 
-## Run locally
+**[Open Cypher](https://cypher-agent.vercel.app)** · **[Development guide](CONTRIBUTING.md)** · **[Release guide](deployment/release-gate.md)**
+
+## One app, one source
+
+| Item | Canonical location |
+| --- | --- |
+| Source | [sodikjonismoilov/VentureCruiter](https://github.com/sodikjonismoilov/VentureCruiter) |
+| Integration branch | `main` |
+| Production app | [cypher-agent.vercel.app](https://cypher-agent.vercel.app) |
+| Legacy app address | [open-grokbot.vercel.app](https://open-grokbot.vercel.app), kept on the same release |
+| Deployment | Existing Vercel project `cypher`, using the repository-root `vercel.json` |
+| Persistent state | The existing shared production PostgreSQL, used by both API and worker |
+
+Feature branches are review work for this app. They are not separate production products. The former Open GrokBot repository and its outstanding proposals are indexed in [Legacy work](docs/LEGACY_WORK.md).
+
+## What Cypher does
+
+- Runs persistent tasks and conversations with automatic or manual model selection.
+- Supports voice, files, media analysis, and image generation where the connected provider supports them.
+- Connects apps through supported sign-in, API-key, and hosted MCP flows, with explicit access and readiness states.
+- Runs background goals and scheduled routines; keeps reusable context and task instructions.
+- Researches companies and SEC founder/investor records, with source links and outreach drafts for review.
+
+App login, a saved connection, discovered tools, and a successful tool call are separate states. Research does not establish a verified contact, sent message, or booked meeting. Provider access, quotas, and billing depend on the connected account. The five-stage VC journey is a product direction, not evidence that automatic outreach and scheduling are implemented.
+
+## Run the frontend locally
 
 ```sh
-cd frontend
+git clone https://github.com/sodikjonismoilov/VentureCruiter.git
+cd VentureCruiter/frontend
 npm ci
 npm run dev
 ```
 
-The UI starts on port 3000. Connect the API with server-only `BACKEND_INTERNAL_URL` or use the full Docker stack documented below. Without a backend the UI displays connection recovery and `/api/health` returns HTTP 503.
+Open `http://localhost:3000`. This starts the frontend only. A working app also needs a configured backend, PostgreSQL, worker, and the required model/account access. `BACKEND_INTERNAL_URL` stays server-side; without a reachable backend, the interface shows connection recovery.
 
-## Deploy on Vercel
+See [SETUP.md](SETUP.md) and [.env.example](.env.example) for the full environment. The Base44 development compose file additionally expects its managed `/run/base44/app.env`; it is not a universal local quick start. Keep disposable test fixtures separate from production data.
 
-Import **sodikjonismoilov/VentureCruiter**, choose the repository root, and retain the root `vercel.json`. It defines the Next.js frontend, a private Python backend through a service binding, and the persistent agent worker. This requires Vercel Services and Daemons access. Keep credentials in Vercel environment settings.
-
-For the existing Hive Cypher project, use its existing environment and database configuration. For a separate installation, configure PostgreSQL, `GROKBOT_BACKEND_API_TOKEN` / backend `BACKEND_API_TOKEN`, authentication (`REQUIRE_USER_AUTH=true`, `AUTH_SESSION_SECRET`), and model credentials before making it public; see `.env.example` and `deployment/`. Google sign-in and connected providers also require the new hostname in their registered callback URLs. The current canonical sign-in hostname is `cypher-agent.vercel.app` in `frontend/src/lib/canonical-app.ts`; change it when creating a separately hosted installation.
-
-Use the [exact-candidate release gate](deployment/release-gate.md) before promotion. It checks public routes, backend binding, database access, worker freshness/release parity and required service configuration.
-
-### HTTP endpoints
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/health` | Public readiness probe; 200 when the backend health probe succeeds, otherwise 503. Returns no credentials or internal addresses. |
-| `GET /api/release` | Public frontend deployment identity and backend binding presence; no credentials or internal addresses. |
-| `GET /api/runtime` | Authenticated runtime, model and worker capability information. |
-| `/api/*` | Same-origin API proxy to the private backend, retaining existing session and service authorization. |
-| `/` | Agent workspace. |
-| `/prospecting` | Company discovery and prospect research. |
-
-Readiness confirms HTTP reachability, not model/provider access or worker execution. Use `/api/runtime` and a real task for those checks.
-
-## Validation
+## Validate a change
 
 ```sh
 cd frontend
@@ -41,107 +48,31 @@ node --test tests/*.test.mjs
 npm run build
 ```
 
----
+From the repository root, run the credential-free release-contract tests:
 
-# 🤖 Open GrokBot
-
-> **Your personal team of AI agents that work 24/7 — self-hosted, open-source, and free.**
-
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Stars](https://img.shields.io/github/stars/ishandutta2007/open-grokbot?style=social)
-![Docker Pulls](https://img.shields.io/docker/pulls/ishandutta2007/open-grokbot)
-
-## What is Open GrokBot?
-
-Open GrokBot is an open-source, self-hosted alternative to x.ai's Grok Bot. It is a platform that gives you an always-on AI agent, ready to perform tasks for you 24/7. It provides a multi-agent environment where agents can collaborate, learn from your demonstrations, and complete end-to-end tasks in isolated sandbox environments.
-
-## Feature Comparison
-
-| Feature | Open GrokBot | Grok Bot (x.ai) |
-| :--- | :--- | :--- |
-| **Pricing** | Free (Bring your own API key / Local LLM) | Subscription |
-| **Hosting** | Self-Hosted / Private Cloud | Cloud (SaaS) |
-| **Data Privacy** | 100% Local / Private | Shared with Provider |
-| **Custom Agents** | Yes, full autonomy | Limited |
-| **Sandbox Execution**| Yes (Docker-in-Docker) | Yes |
-
-## ✨ Key Features
-
-1. 🖥️ **Always-On Cloud PC**: Your agents live in persistent environments, constantly working on tasks in the background.
-2. 🌐 **No-API UI Operation**: Agents can interact with graphical user interfaces using Playwright and headless browsers.
-3. 🤝 **Autonomous Multi-Agent Group Chats**: Agents can collaborate in groups to solve complex multi-step problems.
-4. 🎓 **Demonstration-Based Learning**: Teach your agents how to perform tasks by showing them, and they'll remember for next time.
-5. ✅ **End-to-End Task Completion**: From research to execution to reporting, agents handle the full lifecycle.
-
-## 🚀 Quick Start
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/ishandutta2007/open-grokbot.git
-   cd open-grokbot
-   ```
-
-2. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your preferred LLM API keys and secrets
-   ```
-
-3. **Start the platform**
-   ```bash
-   make up
-   # Or using docker compose directly: docker compose up -d
-   ```
-
-4. **Access the UI**
-   Open your browser and navigate to `http://localhost:3000`.
-
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    User([User]) --> Frontend[Next.js Frontend\nPort 3000]
-    Frontend --> Backend[FastAPI Backend\nPort 8000]
-    
-    Backend --> DB[(PostgreSQL 16\nState & Metadata)]
-    Backend --> Cache[(Redis 7\nPub/Sub & Task Queue)]
-    Backend --> Storage[(MinIO\nFile & Artifact Storage)]
-    
-    Backend --> DockerDaemon[Docker Daemon\nContainer Management]
-    DockerDaemon --> Sandbox1[Sandbox 1\nUbuntu Workspace]
-    DockerDaemon --> Sandbox2[Sandbox 2\nUbuntu Workspace]
+```sh
+node --test scripts/release-smoke.test.mjs
 ```
 
-## 🛠️ Tech Stack
+Backend checks and environment setup are described in [CONTRIBUTING.md](CONTRIBUTING.md). CI passing does not certify a deployed backend, account grant, or worker.
 
-| Component | Technology |
-| :--- | :--- |
-| **Frontend** | Next.js, React, Vanilla CSS |
-| **Backend** | Python, FastAPI, SQLAlchemy |
-| **Database** | PostgreSQL 16 |
-| **Cache / Queue** | Redis 7 |
-| **Storage** | MinIO (S3 Compatible) |
-| **Sandbox** | Docker, Ubuntu 24.04, Playwright |
+## Release the whole app
 
-## ⚙️ Configuration
+Use one clean canonical checkout and the root `vercel.json`, which defines the Next.js frontend, private Python backend binding, and persistent worker. Integrate reviewed work once, then use the [exact-candidate release gate](deployment/release-gate.md).
 
-Configuration is managed via the `.env` file. See `.env.example` for all available options, including database credentials, LLM provider settings (OpenAI, Anthropic, Ollama, etc.), and application secrets.
+The release owner stages the production build, checks the exact candidate, activates it, and verifies API/worker release parity and fresh persistent state on both app addresses. Preserve the existing PostgreSQL and account grants. A frontend-only deployment or Vercel READY status does not complete this process.
 
-## VC founder and investor research
+Public [health](https://cypher-agent.vercel.app/api/health) and [release identity](https://cypher-agent.vercel.app/api/release) are available for inspection. Runtime, conversation, and connected-account routes require the appropriate session.
 
-Cypher's authenticated `/prospecting/investors` workspace searches public SEC Form D people and issuers, matches investor theses against public fund data, and prepares outreach and meeting briefs for review. The latest eight Form D quarters power the fast refresh. A resumable background import can extend the shared founder/issuer index through the SEC's quarterly archive back to January 2008; check `GET /api/prospecting/investors/founders/backfill` for progress and start or resume with `POST` on that path. The signed-in user's verified email identifies Cypher in SEC requests. SEC related-person entries are not automatically founders, and this source does not verify current employment, active fundraising, or personal contact details. Outreach remains a draft and is not sent by this workflow.
+## Repository map
 
-## 📚 API Documentation
+| Path | Purpose |
+| --- | --- |
+| `frontend/` | Next.js interface and same-origin server routes |
+| `backend/` | FastAPI, persistent state, agent execution, and worker |
+| `deployment/` and `scripts/` | Release checks and operational instructions |
+| `docs/` | Feature contracts and historical context |
+| `verification/` | Explicitly isolated test fixtures and verification guidance |
+| `lead-funnel/` | Preserved standalone founder/investor research CLI; see its own [README](lead-funnel/README.md) |
 
-Once the backend is running, you can view the interactive API documentation at `http://localhost:8000/docs` (Swagger UI) or `http://localhost:8000/redoc`.
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to set up the development environment, run tests, and submit pull requests.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-⭐️ **If you find this project useful, please consider giving it a star!**
+Cypher includes work derived from [Open GrokBot](https://github.com/ishandutta2007/open-grokbot). The original MIT copyright and license remain in [LICENSE](LICENSE).
