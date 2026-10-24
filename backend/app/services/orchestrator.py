@@ -83,6 +83,7 @@ class AgentOrchestrator:
         await register_goal_tools(self.registry, conversation_id, goal_id, AsyncSessionLocal, task_id=task_id)
         from app.services.context import register_context_tools
         self.task_id = task_id
+        self.incoming_message_id = str(incoming_message_id) if incoming_message_id else None
         self.journal = ExecutionJournal(task_id, AsyncSessionLocal, execution_attempt)
         self.scope_counter = 0
         self.options = RunOptions(**(options or {}))
@@ -96,6 +97,7 @@ class AgentOrchestrator:
             else:
                 # Non-HTTP jobs still persist their incoming message here.
                 incoming_id = str(uuid.uuid5(uuid.NAMESPACE_URL, 'grokbot:incoming:'+task_id)) if task_id else str(uuid.uuid4())
+                self.incoming_message_id = incoming_id
                 prior = await db.get(Message, incoming_id)
                 incoming_msg = Message(
                     id=incoming_id,
@@ -312,6 +314,7 @@ class AgentOrchestrator:
             seen_directions = {item.id for item in history}
             # Re-send the three newest attachment sets, keeping older references readable.
             attachment_ids = [item.id for item in history if (item.metadata_json or {}).get("attachments")][:3]
+            trigger_content = trigger_message
             for item in reversed(history):
                 if item.sender_type == "user":
                     files = (item.metadata_json or {}).get("attachments", [])
@@ -320,6 +323,11 @@ class AgentOrchestrator:
                     content = content_parts(item.content, prepared)
                     if files and item.id not in attachment_ids:
                         content += "\nEarlier attachment reference (not resent): " + ", ".join(a["name"] for a in files)
+                    if item.id == getattr(self, 'incoming_message_id', None) and item.content == trigger_message:
+                        # Keep this queued turn last without dropping its prepared
+                        # transcript/files or sending its attachment bytes twice.
+                        trigger_content = content
+                        continue
                     messages.append({"role": "user", "content": content})
                 elif item.sender_bot_id == bot_id:
                     messages.append({"role": "assistant", "content": item.content})
@@ -328,7 +336,7 @@ class AgentOrchestrator:
 
             # A previous queued turn can finish after this request was sent.
             # Keep that result as context and make this task's request explicit.
-            messages.append({"role": "user", "content": trigger_message})
+            messages.append({"role": "user", "content": trigger_content})
 
             # Get available tools for this bot
             await self.registry.load_plugins(db, bot)
