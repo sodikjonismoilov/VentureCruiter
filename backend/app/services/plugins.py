@@ -33,6 +33,17 @@ def transient_failure(error):
     return status in {408, 429, 500, 502, 503, 504} or isinstance(error, (TimeoutError, httpx.TransportError))
 
 
+def provider_status(error):
+    """Unwrap transport exception groups without exposing provider bodies."""
+    status = getattr(error, 'status_code', None)
+    if status is None:
+        status = getattr(getattr(error, 'response', None), 'status_code', None)
+    if status is not None:
+        return status
+    return next((status for child in getattr(error, 'exceptions', [])
+                 if (status := provider_status(child)) is not None), None)
+
+
 def authentication_failure(error):
     from app.services.plugin_auth import SignInRequired
     if isinstance(error, (SignInRequired, InvalidToken)): return True
@@ -194,7 +205,16 @@ async def invoke(plugin_id, tool_name, arguments):
                     token,auth=await connection_auth(db,plugin)
                     async with session(plugin.url, token, auth) as client:
                         result = await client.call_tool(tool_name, arguments)
-                        return tool_result(result, plugin.name)
+                        output = tool_result(result, plugin.name)
+                        if (urlsplit(plugin.url).hostname == 'jobherder.com' and tool_name == 'get_pricing'
+                                and output.get('code') == 'invalid_provider_output'):
+                            from app.services.provider_fallbacks import jobherder_website_pricing
+                            try:
+                                return await jobherder_website_pricing(plugin.name)
+                            except Exception:
+                                output['recovery_url'] = 'https://jobherder.com/pricing'
+                                output['recovery_message'] = 'The provider rejected its pricing output. The official pricing page could not be verified either. No registration, purchase, or job search ran.'
+                        return output
                 except Exception as error:
                     if attempt < 2 and is_read_only(plugin.url, tool) and transient_failure(error):
                         await asyncio.sleep(2 ** attempt)
@@ -202,6 +222,10 @@ async def invoke(plugin_id, tool_name, arguments):
                     # Do not leak raw transport/OAuth responses into agent context.
                     if authentication_failure(error):
                         return {'success':False, 'error':'This plugin needs sign-in again. Reconnect it in Plugins.', 'code':'sign_in_required'}
+                    status = provider_status(error)
+                    if status in {429, 502, 503, 504}:
+                        return {'success':False, 'error':f'The provider is temporarily unavailable (HTTP {status}). Retry later; your saved connection has not been changed.',
+                                'code':'provider_unavailable', 'provider_status':status, 'retryable':True}
                     return {'success':False, 'error':'The plugin call failed. Check its connection and service permissions; no successful result was returned.', 'code':'unavailable'}
 
 
