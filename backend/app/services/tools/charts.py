@@ -45,6 +45,9 @@ class ChartRequest(BaseModel):
 
     @model_validator(mode='after')
     def valid_data(self):
+        texts = [self.title,self.source,self.x_label,self.y_label,self.note,*self.labels,*(item.name for item in self.series)]
+        if any((ord(char)<32 and char not in '\t\n\r') or 0xD800<=ord(char)<=0xDFFF or ord(char) in {0xFFFE,0xFFFF} for text in texts for char in text):
+            raise ValueError('Chart text must not contain invalid XML control characters or malformed Unicode.')
         if any(len(item.values) != len(self.labels) for item in self.series):
             raise ValueError('Each series must have exactly one value per label; use null for missing observations.')
         if len({item.name for item in self.series}) != len(self.series):
@@ -119,7 +122,7 @@ class Canvas:
         ]
 
     def text(self, x, y, value, size=16, color=INK, anchor='start', bold=False):
-        value = str(value)
+        value = str(value).replace('\r',' ').replace('\n',' ').replace('\t',' ')
         key = (size,bold)
         if key not in self.fonts:
             self.fonts[key] = self.font.truetype(str(FONT_DIR / f'inter-latin-{"semibold" if bold else "regular"}.ttf'),size=size)

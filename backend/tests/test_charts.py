@@ -64,6 +64,8 @@ def test_all_chart_types_return_real_png_accessible_svg_and_exact_csv(kind):
     {'chart_type':'pie','series':[{'name':'A','values':[1,2,3]},{'name':'B','values':[3,4,5]}]},
     {'data_origin':'tool_result','source':''},
     {'code':'import os'},
+    {'title':'Bad\x00label'},
+    {'source':'bad\ud800source'},
     {'labels':[]},
 ])
 def test_invalid_data_produces_actionable_error_without_fake_downloads(changes):
@@ -100,6 +102,15 @@ def test_missing_line_observations_are_gaps_and_csv_blanks():
     rows=list(csv.reader(io.StringIO(exported['text/csv'].decode('utf-8-sig'))))
     assert rows[3]==['C','']
     assert 'Observed missing' in svg.find('svg:desc',NS).text
+
+
+def test_multiline_source_text_stays_valid_and_csv_keeps_original_labels():
+    result=run(request(labels=['North\nAmerica','Europe','Asia'],source='Provided\nby user',data_origin='tool_result'))
+    assert result['success'] is True
+    exported=files(result)
+    ET.fromstring(exported['image/svg+xml'])
+    rows=list(csv.reader(io.StringIO(exported['text/csv'].decode('utf-8-sig'))))
+    assert rows[1][0]=='North\nAmerica'
 
 
 def test_negative_and_zero_bar_domains_include_truthful_zero_baseline():
