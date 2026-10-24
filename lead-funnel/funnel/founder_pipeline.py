@@ -2,12 +2,16 @@
 import csv
 import json
 import os
+import re
+import sys
 import urllib.request
 from datetime import date
 from pathlib import Path
 
 from . import builders, founders as F
 from .score import best_passages, learned_weights, load_connections, load_labels, text_similarity
+
+CONTEXT = "report_context.json"  # funnel counts, notes, weights and fallback quotes: report.md inputs not in leads.json
 
 
 def _readme(l, cache: Path):
@@ -177,6 +181,14 @@ def run(th, t, args, data: Path, here: Path):
     (th.out / "leads.json").write_text(json.dumps([{k: l.get(k) for k in keep} for l in ranked], indent=1))
     _csv(th.out / "shortlist.csv", shortlist)
     _csv(th.out / "sourced.csv", sourced)
+    # What the report needs beyond leads.json, so `run.py report` can re-render it without a funnel run.
+    # Optional: a failure here must never cost a finished rank run.
+    try:
+        (th.out / CONTEXT).write_text(json.dumps({
+            "generated": date.today().isoformat(), "counts": counts, "notes": notes, "wnote": wnote, "weights": weights,
+            "passages": {l["id"]: l["passages"][:1] for l in shortlist if l.get("passages")}}, indent=1))
+    except Exception as e:
+        print(f"Warning: could not write {CONTEXT} ({e}); report.md is still written, but `run.py report` will need a new rank run.")
     _report(th.out / "report.md", t, counts, notes, wnote, weights, shortlist, overlaps, labels)
     print("\n".join(f"  {n:>7,}  {label}" for label, n in counts))
     print(f"\nWrote {th.out / 'report.md'}")
@@ -191,17 +203,49 @@ def _csv(path, rows):
                         l.get("contact", ""), l["score"], *[l["features"].get(k, "") for k in F.FEATURES]])
 
 
-def _report(path, t, counts, notes, wnote, weights, shortlist, overlaps, labels):
+def _held_back(shortlist, t):
+    """Display only: shortlisted leads the report lists under "Also considered" instead of the main list,
+    with the reasons. Off unless the thesis sets [run] min_shortlist_fit; never changes scores or leads.json."""
+    min_fit = (t.get("run") or {}).get("min_shortlist_fit") or 0
+    if not min_fit:
+        return {}
+    # report_exclusions: extra words for this check only; `exclusions` also feeds the funnel's scoring, these don't
+    words = list(dict.fromkeys(t.get("exclusions", []) + (t.get("run") or {}).get("report_exclusions", [])))
+    held = {}
+    for l in shortlist:
+        j = l.get("judgment") or {}
+        why = [f"Claude fit {j['fit']}/5, below {min_fit}"] if "fit" in j and j["fit"] < min_fit else []
+        # The funnel's exclusion check reads site language; this one reads Claude's own summary of the company
+        said = f"{j.get('what_they_build') or ''} {j.get('why') or ''}".lower()
+        why += [f"matches exclusion: {e}" for e in words if re.search(r"\b" + re.escape(e.lower()) + r"\b", said)]
+        if why:
+            held[l["id"]] = why
+    return held
+
+
+def _who(l):
+    return l["person"] or (l.get("judgment") or {}).get("contact") or "founder unknown"
+
+
+def _report(path, t, counts, notes, wnote, weights, shortlist, overlaps, labels, generated=None):
+    held = _held_back(shortlist, t)
+    filtered = bool((t.get("run") or {}).get("min_shortlist_fit"))
+    shown = [l for l in shortlist if l["id"] not in held]
+    if filtered:
+        notes = notes + [f"Shown: {len(shown)} of {len(shortlist)} shortlisted founders. {len(held)} with Claude fit under "
+                         f"{t['run']['min_shortlist_fit']}/5 or a thesis exclusion in Claude's summary are under Also considered."]
     L = [f"# Founder shortlist: {t.get('fund_name', 'Fund')}", "", f"**Thesis:** {t['one_liner']}", "",
-         f"Generated {date.today().isoformat()}. Sources: SEC Form D, GitHub, Show HN, arXiv, startup websites"
+         f"Generated {generated or date.today().isoformat()}. Sources: SEC Form D, GitHub, Show HN, arXiv, startup websites"
          + (", akta.pro" if any(l["source"] == "akta.pro" for l in shortlist) else "")
          + (", Claude" if any("fit" in (l.get("judgment") or {}) for l in shortlist) else "") + ".", "",
          "## Funnel", "", "| Stage | Leads |", "|---|---:|"] + [f"| {label} | {n:,} |" for label, n in counts]
     L += ["", *[f"- {n}" for n in notes], f"- Weights: {wnote}.", "", "| Feature | Weight |", "|---|---:|"]
     L += [f"| {k} | {weights[k]:.2f} |" for k in F.FEATURES] + ["", "## Founders", ""]
-    for i, l in enumerate(shortlist, 1):
+    for i, l in enumerate(shown, 1):
         j = l.get("judgment") or {}
-        who = l["person"] or j.get("contact") or "founder unknown"
+        who = _who(l)
+        # With the filter on, list numbers no longer match last_rank.json, so the label command names the lead id
+        ref = l["id"] if filtered else i
         L.append(f"### {i}. {who}" + (f" · {l['company']}" if l["company"] else "") + f" · score {l['score']:.2f}"
                  + (" · ✓ liked" if labels.get(l["id"], (0,))[0] > 0 else ""))
         stage = {"raising": "Raising now", "pre-round": "Before the round", "unknown": "Stage unknown"}[l["stage"]]
@@ -237,7 +281,65 @@ def _report(path, t, counts, notes, wnote, weights, shortlist, overlaps, labels)
         if risks:
             L.append("\n**Watch out:** " + "; ".join(risks))
         L.append("\n**Score:** " + " · ".join(f"{k} {l['features'][k]:.2f}" for k in F.FEATURES if k in l["features"]))
-        L.append(f"\n`python run.py label {i} yes \"why\"` or `python run.py label {i} no \"why\"`\n")
+        L.append(f"\n`python run.py label {ref} yes \"why\"` or `python run.py label {ref} no \"why\"`\n")
     if overlaps:
         L += ["## Possible portfolio overlap (review)", ""] + [f"- **{l['person']} · {l['company']}**: {'; '.join(l['conflicts'])}" for l in overlaps[:15]]
+    if held:
+        L += ([""] if overlaps else []) + ["## Also considered", "",
+              "Shortlisted on score, but Claude rated the fit low or its summary names a thesis exclusion. "
+              "`python run.py show <lead id>` has the full brief.", ""]
+        for l in shortlist:
+            if l["id"] in held:
+                j = l.get("judgment") or {}
+                L.append(f"- **{_who(l)}" + (f" · {l['company']}" if l["company"] else "") + f"** (`{l['id']}`, score {l['score']:.2f}): "
+                         + "; ".join(held[l["id"]]) + (f". {j['what_they_build']}" if j.get("what_they_build") else ""))
     path.write_text("\n".join(L) + "\n")
+
+
+def write_report(th, t):
+    """Re-render report.md from the saved leads.json and last_rank.json: no funnel run, no API calls."""
+    for p in (th.out / "leads.json", th.ranks):
+        if not p.exists():
+            sys.exit(f"No {p.name} in {th.out}. Run: python run.py rank --thesis {th.path.name}")
+    leads = json.loads((th.out / "leads.json").read_text())  # all finalists, best score first
+    by_id = {l["id"]: l for l in leads}
+    shortlist = [by_id[i] for i in json.loads(th.ranks.read_text()) if i in by_id]
+    ctx_path = th.out / CONTEXT
+    if ctx_path.exists():
+        ctx = json.loads(ctx_path.read_text())
+    else:  # a run from before report_context.json existed: read those inputs back from its report.md, once
+        ctx = _context_from_report(th.out / "report.md", shortlist, th)
+        ctx_path.write_text(json.dumps(ctx, indent=1))
+        print(f"Saved {ctx_path.name} from the current report.md (funnel counts, notes, weights, fallback quotes).")
+    for l in shortlist:
+        l["passages"] = ctx["passages"].get(l["id"], [])
+    _report(th.out / "report.md", t, [tuple(c) for c in ctx["counts"]], ctx["notes"], ctx["wnote"], ctx["weights"],
+            shortlist, [l for l in leads if l.get("conflicts")], load_labels(th.labels), generated=ctx["generated"])
+    held = _held_back(shortlist, t)
+    print(f"Wrote {th.out / 'report.md'}: {len(shortlist) - len(held)} shown, {len(held)} under Also considered.")
+
+
+def _context_from_report(path, shortlist, th):
+    """The report inputs leads.json doesn't keep, parsed from a report.md that _report wrote."""
+    if not path.exists():
+        sys.exit(f"No {CONTEXT} or report.md in {th.out}. Run: python run.py rank --thesis {th.path.name}")
+    text = path.read_text()
+    funnel = text.split("\n## Funnel\n", 1)[-1].split("\n## Founders\n", 1)[0]
+    stages, _, rest = funnel.partition("\n\n- ")
+    counts = [[m[1], int(m[2].replace(",", ""))] for m in re.finditer(r"^\| (.+) \| ([\d,]+) \|$", stages, re.M)]
+    bullets = [b[2:] for b in ("- " + rest).split("\n\n", 1)[0].splitlines() if b.startswith("- ")]
+    notes = [b for b in bullets if not b.startswith(("Weights: ", "Shown: "))]  # "Shown:" is added by _report itself
+    wnote = next((b.removeprefix("Weights: ").removesuffix(".") for b in bullets if b.startswith("Weights: ")), "")
+    weights = {m[1]: float(m[2]) for m in re.finditer(r"^\| (\w+) \| (-?[\d.]+) \|$", funnel, re.M) if m[1] in F.FEATURES}
+    generated = re.search(r"^Generated (\d{4}-\d{2}-\d{2})\.", text, re.M)
+    # A shortlisted founder without a verified quote shows the closest sentence to the thesis: keep it, by lead id
+    order, passages = [l["id"] for l in shortlist], {}
+    for block in text.split("\n### ")[1:]:
+        ref = re.search(r"run\.py label (\S+) yes", block)
+        quote = re.search(r"^> (.*)\n> — (\S+) \(closest sentence to the thesis\)$", block, re.M)
+        if ref and quote:
+            lead_id = order[int(ref[1]) - 1] if ref[1].isdigit() and int(ref[1]) <= len(order) else ref[1]
+            passages[lead_id] = [{"text": quote[1], "url": quote[2]}]
+    if not counts or len(weights) != len(F.FEATURES) or not generated:
+        sys.exit(f"Could not read the funnel counts and weights from {path}. Run: python run.py rank --thesis {th.path.name}")
+    return {"generated": generated[1], "counts": counts, "notes": notes, "wnote": wnote, "weights": weights, "passages": passages}

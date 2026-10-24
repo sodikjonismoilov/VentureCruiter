@@ -20,6 +20,8 @@ The tool also runs the other way: a **startup thesis** finds the venture firms t
 
 ## Setup
 
+Requires Python 3.12 or newer (`funnel/judge.py` uses nested f-strings).
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -53,6 +55,7 @@ Run from this folder. `rank` picks its mode from the thesis file: a fund thesis 
 | `run.py rank --thesis theses/fund/my_fund.toml` | Any fund thesis | as above |
 | `run.py label 3 yes "why"` | Label lead #3 from the last shortlist for that thesis | Free |
 | `run.py show 3` | Everything known about lead #3 | Free |
+| `run.py report` | Rewrite `report.md` from the saved `leads.json`, e.g. after changing `min_shortlist_fit`; no funnel run | Free, no API calls, seconds |
 | `run.py dossier` | Sourced JSON dossier on each shortlisted founder, for a chatbot | About $1–2 via Claude for 15; free if cached |
 | `run.py dossier --akta-profiles` | Also add akta.pro leadership profiles | Up to 1 credit per company |
 | `run.py chat` | Ask questions about the shortlisted founders, answered from the dossiers | About $0.03–0.10 per question |
@@ -82,7 +85,7 @@ Copy [theses/fund/example_fund.toml](theses/fund/example_fund.toml) (an example:
 | `founded_after`, `max_months_since_filing` | Drops older companies and stale filings |
 | `entity_types` | Form D entity types kept (default `["Corporation"]`; LLCs here are mostly vehicles) |
 | `akta_query` or `akta_filters` | What akta.pro List Generation searches for (only with `--akta-list`) |
-| `[run]` | Stage sizes, shortlist length, `pre_round_share`, `min_builder_fit` (Claude fit a builder needs to use a kept shortlist place, default 3), Claude effort (Anthropic only) |
+| `[run]` | Stage sizes, shortlist length, `pre_round_share`, `min_builder_fit` (Claude fit a builder needs to use a kept shortlist place, default 3), `min_shortlist_fit` (report only, default 0 = off: founders Claude rates below it, or whose summary names one of the `exclusions`, are listed under "Also considered" instead of the main list; the ranking and `leads.json` don't change), `report_exclusions` (report only: extra words for that exclusion check, never used in scoring), Claude effort (Anthropic only) |
 
 ## Results
 
@@ -93,6 +96,7 @@ For `theses/fund/my_fund.toml`:
 | `out/founders/my_fund/report.md` | Shortlist with briefs: stage, what they build, why meet, quote, evidence, how to reach them, concerns, score |
 | `out/founders/my_fund/leads.json` | All 50 finalists with evidence and Claude's judgment |
 | `out/founders/my_fund/shortlist.csv`, `sourced.csv` | Shortlist and all 1,000 sourced leads with feature scores |
+| `out/founders/my_fund/report_context.json` | Funnel counts, notes, weights and fallback quotes, so `run.py report` can rewrite the report |
 | `data/labels/founders/my_fund.csv` | Your yes/no labels for this thesis |
 
 ## Founder dossiers and chat

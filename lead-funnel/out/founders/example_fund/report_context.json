@@ -1,0 +1,76 @@
+{
+ "generated": "2026-10-24",
+ "counts": [
+  [
+   "All leads",
+   14642
+  ],
+  [
+   "Startups raising now (Form D, last 2 years, named officers)",
+   14487
+  ],
+  [
+   "Builders from GitHub (thesis keywords, recent)",
+   27
+  ],
+  [
+   "Builders from Show HN (thesis keywords, recent)",
+   58
+  ],
+  [
+   "Builders from arXiv (thesis keywords, recent)",
+   59
+  ],
+  [
+   "Companies from akta.pro List Generation",
+   11
+  ],
+  [
+   "Pass hard filters (recent, stage, founded, on-thesis keywords)",
+   2003
+  ],
+  [
+   "Sourced: stage, recency, relevance, traction, founder signals",
+   1000
+  ],
+  [
+   "Screened: language match to the thesis",
+   200
+  ],
+  [
+   "Deep: websites, READMEs, warm paths",
+   50
+  ],
+  [
+   "Shortlist",
+   15
+  ]
+ ],
+ "notes": [
+  "akta.pro list: 11 companies, 0 credits this run; 824 usable left this month.",
+  "akta.pro company search (free): 65 lookups for startup websites.",
+  "Websites found for 94 of 134 screened Form D startups.",
+  "Claude Opus 5.5 via Nicrron: judged 50 of 50.",
+  "Pre-round builders on the shortlist: 0 (places are kept only for builders Claude rates fit 3/5 or better; best builder fit this run: 2/5)."
+ ],
+ "wnote": "defaults (need 2+ yes and 2+ no labels; have 0 yes, 0 no)",
+ "weights": {
+  "stage_fit": 0.1,
+  "recency": 0.1,
+  "geo": 0.05,
+  "relevance": 0.15,
+  "traction": 0.15,
+  "founder": 0.1,
+  "text_sim": 0.15,
+  "warm": 0.05,
+  "claude": 0.3
+ },
+ "passages": {
+  "co:0002153764": [
+   {
+    "text": "You should talk to a financial adviser before making any financial decisions.",
+    "url": "https://www.count.au/"
+   }
+  ]
+ }
+}

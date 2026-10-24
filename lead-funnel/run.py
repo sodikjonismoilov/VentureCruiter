@@ -12,6 +12,7 @@
   python run.py investors [--thesis PATH]  same as rank, defaulting to theses/startup/vet_clinics.toml
   python run.py label <rank|id> yes|no ["why"] [--thesis PATH]   teach it your taste for that thesis
   python run.py show <rank|id> [--thesis PATH]                   print everything known about one lead
+  python run.py report [--thesis PATH]     founders: rewrite report.md from the saved leads.json (no funnel run, no API calls)
   python run.py dossier [--thesis PATH]    founders: sourced JSON dossier on each shortlisted founder (Claude)
         [--akta-profiles]                  also buy akta.pro leadership profiles (1 credit per company)
   python run.py chat [--thesis PATH]       chat with an assistant that answers from the dossiers
@@ -248,6 +249,14 @@ def cmd_rank(args):
     return cmd_investors(args, th)
 
 
+def cmd_report(args):
+    th = Thesis(args.thesis or DEFAULT_FUND)
+    if th.mode != "founders":
+        sys.exit("report re-renders founder sourcing results; pass a fund thesis (one with round_size_usd).")
+    from funnel.founder_pipeline import write_report
+    write_report(th, th.load())
+
+
 def cmd_investors(args, th):
     from funnel import score as S
     from funnel.web import enrich as web_enrich
@@ -430,11 +439,12 @@ def main():
     sy = sub.add_parser("akta-sync"); sy.add_argument("remaining", type=float, help="remaining credits shown on your akta.pro dashboard")
     l = sub.add_parser("label", parents=[th_arg]); l.add_argument("ref"); l.add_argument("label", choices=["yes", "no"]); l.add_argument("note", nargs="?")
     s = sub.add_parser("show", parents=[th_arg]); s.add_argument("ref")
+    sub.add_parser("report", parents=[th_arg])
     args = ap.parse_args()
     if getattr(args, "thesis", "x") is None and args.cmd in ("label", "show"):
         args.thesis = DEFAULT_FUND
     {"build": cmd_build, "rank": cmd_rank, "investors": cmd_rank, "label": cmd_label, "show": cmd_show, "akta-budget": cmd_akta_budget, "akta-sync": cmd_akta_sync,
-     "dossier": cmd_dossier, "chat": cmd_chat}[args.cmd](args)
+     "dossier": cmd_dossier, "chat": cmd_chat, "report": cmd_report}[args.cmd](args)
 
 
 if __name__ == "__main__":

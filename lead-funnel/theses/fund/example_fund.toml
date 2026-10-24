@@ -53,3 +53,5 @@ shortlist = 15
 judge_effort = "high"
 pre_round_share = 0.33   # share of each stage kept for builders who have not raised yet
 min_builder_fit = 3      # on the final shortlist, kept places go only to builders Claude rates this fit or better
+min_shortlist_fit = 3    # report only: founders Claude rates below this fit, or whose summary names an exclusion, go under "Also considered"
+report_exclusions = ["digital assets", "stablecoin"]  # report only: extra exclusion words for that check; unlike `exclusions`, never used in scoring
