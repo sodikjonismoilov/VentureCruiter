@@ -205,11 +205,19 @@ class AgentOrchestrator:
             responses.extend(plan)
 
             by_name = {bot.name.casefold(): bot for bot in bots if bot.id != coordinator.id}
+            by_role = {}
+            for bot in bots:
+                if bot.id != coordinator.id and bot.role:
+                    by_role.setdefault(bot.role.casefold(), []).append(bot)
             assignments = []
             seen = set()
             for response in plan:
                 for name, task in self._parse_handoffs(response.get("content", "")):
                     specialist = by_name.get(name.casefold())
+                    if specialist is None:
+                        role_matches = by_role.get(name.casefold(), [])
+                        if len(role_matches) == 1:
+                            specialist = role_matches[0]
                     if specialist and specialist.id not in seen:
                         assignments.append((specialist, task))
                         seen.add(specialist.id)

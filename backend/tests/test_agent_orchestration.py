@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.orchestrator import AgentOrchestrator
+from .test_workspace_workflows import workspace
 
 
 @pytest.mark.asyncio
@@ -79,3 +80,88 @@ def test_handoff_parser_keeps_colons_in_the_assignment():
     assert runner._parse_handoffs("HANDOFF[Researcher: Check the service at https://example.com:8443/docs]") == [
         ("Researcher", "Check the service at https://example.com:8443/docs")
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('ambiguous', [False, True])
+async def test_role_handoffs_resolve_only_one_specialist(ambiguous):
+    runner = AgentOrchestrator.__new__(AgentOrchestrator)
+    runner.options = SimpleNamespace(team_rounds=3)
+    bots = [
+        SimpleNamespace(id='coordinator', name='Backend Check Coordinator', role='Coordinator'),
+        SimpleNamespace(id='researcher', name='Backend Check Researcher', role='Researcher'),
+        SimpleNamespace(id='reviewer', name='Backend Check Reviewer', role='Reviewer'),
+    ]
+    if ambiguous:
+        bots.append(SimpleNamespace(id='other', name='Other Researcher', role='Researcher'))
+    calls = []
+
+    async def run_agent(db, conversation_id, bot_id, trigger_message):
+        calls.append(bot_id)
+        if runner.planning:
+            return [{'content': 'HANDOFF[Researcher: Calculate 17 + 25.]\nHANDOFF[Reviewer: Verify the sum.]'}]
+        return [{'content': '42'}]
+
+    runner._run_agent_loop = run_agent
+    await runner._coordinate_team(object(), SimpleNamespace(id='room'), bots, bots[0], 'Verify the sum.')
+    assert calls == (['coordinator', 'reviewer', 'coordinator'] if ambiguous else
+                     ['coordinator', 'researcher', 'reviewer', 'coordinator'])
+
+
+@pytest.mark.asyncio
+async def test_role_handoffs_persist_specialists_and_reach_final_synthesis(workspace, monkeypatch):
+    import asyncio
+    from contextlib import suppress
+    from app.services import worker
+    from app.services.llm_gateway import LLMGateway
+
+    client, _ = workspace
+    headers = {'x-grokbot-user-id': 'handoff-verification-owner'}
+    agents = []
+    for role in ('Researcher', 'Reviewer', 'Coordinator'):
+        response = await client.post('/api/bots', headers=headers, json={
+            'name': 'Backend Check '+role, 'role': role, 'system_prompt': 'Verify the sum.',
+            'llm_provider': 'openai', 'llm_model': 'gpt-6-luna', 'tools_enabled': ['plugins']})
+        assert response.status_code == 200
+        agents.append(response.json()['id'])
+    room = (await client.post('/api/conversations', headers=headers, json={
+        'title': 'Role handoff verification', 'is_group': True, 'bot_ids': agents})).json()
+    calls = []
+
+    async def complete(**kwargs):
+        messages = kwargs['messages']
+        prompt = messages[0]['content']
+        calls.append(prompt)
+        if 'Plan this task briefly.' in prompt:
+            content = 'HANDOFF[Researcher: Calculate 17 + 25.]\nHANDOFF[Reviewer: Independently verify the sum.]'
+        elif 'The assigned specialist work has finished.' in prompt:
+            history = '\n'.join(str(m['content']) for m in messages)
+            assert 'Teammate Backend Check Researcher: 42' in history
+            assert 'Teammate Backend Check Reviewer: 42' in history
+            content = 'Both specialists verified 42.'
+        else:
+            content = '42'
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, tool_calls=None))])
+
+    monkeypatch.setattr(LLMGateway, 'complete', complete)
+    queued = await client.post('/api/conversations/'+room['id']+'/messages', headers=headers,
+        json={'sender_type':'user', 'content':'Verify 17 + 25.', 'options':{'allow_tools':False, 'max_iterations':2}})
+    assert queued.status_code == 202
+    task = asyncio.create_task(worker.run_worker())
+    try:
+        async with asyncio.timeout(8):
+            while True:
+                jobs = (await client.get('/api/conversations/'+room['id']+'/tasks', headers=headers)).json()
+                if jobs[0]['status'] in ('completed', 'failed'):
+                    break
+                await asyncio.sleep(.03)
+        assert jobs[0]['status'] == 'completed'
+        messages = (await client.get('/api/conversations/'+room['id']+'/messages', headers=headers)).json()
+        responses = [m for m in messages if m['sender_type'] == 'bot']
+        assert {m['sender_bot_id'] for m in responses} == set(agents)
+        assert len(calls) == 4
+        assert messages[0]['content'] == 'Both specialists verified 42.'
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
