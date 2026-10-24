@@ -117,33 +117,68 @@ class ToolRegistry:
         # tools keep model context bounded even with hundreds of connections.
         connections = list((await db.execute(select(Plugin).where(Plugin.enabled == True))).scalars())
         oauth_connections=set((await db.execute(select(PluginAuthorization.plugin_id).where(PluginAuthorization.status=='connected',PluginAuthorization.payload.is_not(None)))).scalars())
-        account_linked = {
-            plugin.id: bool(plugin.credential) or plugin.id in oauth_connections
-            for plugin in connections
-        }
-        from app.services.plugins import is_read_only, is_google_workspace
+        from app.services.plugins import is_read_only, is_google_workspace, reveal, InvalidToken
+        def linked(plugin):
+            try:
+                return bool(reveal(plugin.credential)) or plugin.id in oauth_connections
+            except (InvalidToken, ValueError):
+                return plugin.id in oauth_connections
+        account_linked = {plugin.id: linked(plugin) for plugin in connections}
         google_ids={p.id for p in connections if is_google_workspace(p)}
-        manifest = [{**tool, 'plugin_id':p.id, 'service':p.name, 'authenticated':account_linked[p.id], 'provider':'google' if p.id in google_ids else None, 'read_only':is_read_only(p.url, tool)} for p in connections for tool in p.tools if tool.get('enabled', True)]
+        from urllib.parse import urlsplit
+        def hostname(url):
+            try:
+                return (urlsplit(url).hostname or '').casefold()
+            except ValueError:
+                return ''
+        unsupported = {}
+        for plugin in connections:
+            if not plugin.url.casefold().startswith('site-mcp://'):
+                continue
+            host = hostname(plugin.url)
+            replacements = []
+            if host in {'gmail.com', 'mail.google.com'}:
+                replacements = [p.id for p in connections if p.id in google_ids]
+                service = 'Google Workspace'
+                message = 'This legacy website placeholder cannot run Gmail tools. Use the Google Workspace connection; if Gmail is not authorized there, connect Google and grant Gmail access.'
+            elif host in {'instagram.com', 'www.instagram.com'}:
+                replacements = [p.id for p in connections if hostname(p.url) == 'mcp.windsor.ai' and account_linked[p.id]]
+                service = 'Windsor.ai'
+                message = 'This legacy website placeholder is not an Instagram API connection. Use Windsor.ai and connect an Instagram account there if needed; no account grant is implied by the catalog.'
+            else:
+                service = None
+                message = 'This legacy website placeholder is not an executable MCP connection. Connect a supported provider or its published HTTPS MCP endpoint.'
+            unsupported[plugin.id] = {'code':'unsupported_endpoint', 'message':message,
+                                      'suggested_service':service, 'replacement_plugin_ids':replacements}
+        manifest = [{**tool, 'plugin_id':p.id, 'service':p.name, 'authenticated':account_linked[p.id], 'provider':'google' if p.id in google_ids else None, 'read_only':is_read_only(p.url, tool)} for p in connections if p.id not in unsupported for tool in p.tools if tool.get('enabled', True)]
         self._plugin_manifest = manifest
-        if not manifest:
+        if not manifest and not unsupported:
             return
         async def search(arguments, bot_id):
             query=str(arguments.get('query','')).strip()
+            unavailable = unsupported.get(arguments.get('plugin_id'))
+            if unavailable is None and arguments.get('service'):
+                unavailable = next((unsupported[p.id] for p in connections if p.id in unsupported and p.name.casefold() == str(arguments['service']).casefold()), None)
+            if unavailable:
+                return {'tools':[], 'total_matches':0, 'error':unavailable['message'], 'code':'unsupported_endpoint', 'recovery_message':unavailable['message'], 'recovery':unavailable}
             scoped=[t for t in manifest if not arguments.get('plugin_id') or t['plugin_id']==arguments['plugin_id']]
             google_aliases={'gmail':'gmail_','google gmail':'gmail_','calendar':'calendar_','google calendar':'calendar_','drive':'drive_','google drive':'drive_','docs':'docs_','google docs':'docs_','sheets':'sheets_','google sheets':'sheets_','slides':'slides_','google slides':'slides_','contacts':'people_','google contacts':'people_','tasks':'tasks_','google tasks':'tasks_'}
             requested_service=str(arguments.get('service','')).strip().casefold()
             google_prefix=google_aliases.get(requested_service)
             google_scope=bool(google_prefix and any(t.get('provider')=='google' for t in scoped))
             if google_scope:scoped=[t for t in scoped if (t.get('provider')=='google' and t['name'].startswith(google_prefix)) or (t.get('provider')!='google' and t['service'].casefold()==requested_service)]
-            if not scoped:return {'tools':[],'total_matches':0,'error':'No enabled tools for that plugin_id. Discover existing services first; do not search unrelated services as a fallback.'}
             if not query and not arguments.get('service') and not arguments.get('plugin_id'):
-                services=sorted([{'plugin_id':p.id,'service':p.name,'authenticated':bool(p.credential) or p.id in oauth_connections,'tool_count':sum(t['plugin_id']==p.id for t in manifest)} for p in connections],key=lambda p:(not p['authenticated'],p['service'].casefold()))
+                services=sorted([{'plugin_id':p.id,'service':p.name,'authenticated':account_linked[p.id], 'available':p.id not in unsupported, **({'recovery':unsupported[p.id]} if p.id in unsupported else {}), 'tool_count':sum(t['plugin_id']==p.id for t in manifest)} for p in connections],key=lambda p:(not p['authenticated'],p['service'].casefold()))
                 return {'tools':[],'services':services[:30],'total_services':len(services),'instruction':'Existing account-backed connections are listed first. Search with the exact service/account name or its plugin_id and the desired operation. Connected grants are server-side; sandbox CLI authentication is separate and must not be used to rediscover credentials.'}
+            if not scoped:return {'tools':[],'total_matches':0,'error':'No enabled tools for that plugin_id. Discover existing services first; do not search unrelated services as a fallback.'}
             # An exact connection ID is authoritative. A shortened or outdated
             # display label must not hide tools in that already selected account.
             ranked=rank_plugin_tools(scoped,query,None if arguments.get('plugin_id') or google_scope else arguments.get('service'))
             return {'tools': [{'plugin_id':t['plugin_id'], 'service':t['service'], 'authenticated':t['authenticated'], 'name':t['name'], 'description':t.get('description',''), 'parameters':t['schema'],'read_only':t['read_only']} for t in ranked[:12]], 'total_matches':len(ranked), 'instruction':'Call plugin_call with the exact returned plugin_id, tool_name and parameters. Bare service names include existing account variants; select the correct account. Use service or plugin_id to keep follow-up discovery scoped. Prefer account-backed services for private account actions. Search is discovery, not evidence that an action ran. If an exact operation is unavailable, use a relevant supported operation or report the limit; do not invent a tool or hunt for tokens in the sandbox.'}
         async def call(arguments, bot_id):
+            if arguments.get('plugin_id') in unsupported:
+                recovery = unsupported[arguments['plugin_id']]
+                return {'success':False, 'error':recovery['message'], 'code':'unsupported_endpoint', 'recovery_message':recovery['message'], 'recovery':recovery}
             if not any(t['plugin_id']==arguments.get('plugin_id') and t['name']==arguments.get('tool_name') for t in manifest):
                 return {'error':'Search enabled plugin tools first and use an exact returned service/tool.'}
             values=dict(arguments.get('arguments', {}))

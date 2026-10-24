@@ -295,8 +295,8 @@ async def test_existing_plugin_discovery_scopes_by_connection_and_normalizes_ver
     try:
         async with sessions() as db:
             schema={'type':'object','properties':{}}
-            github=Plugin(name='GitHub · Hive',url='https://github.example.test/mcp',credential='test-connection-grant',tools=[{'name':'list_branches','schema':schema,'description':'List repository branches'}])
-            vercel=Plugin(name='Vercel',url='https://mcp.vercel.com',credential='test-connection-grant',tools=[{'name':'get_deployment','schema':schema,'description':'Get a deployment'}])
+            github=Plugin(name='GitHub · Hive',url='https://github.example.test/mcp',credential=plugins.seal('test-connection-grant'),tools=[{'name':'list_branches','schema':schema,'description':'List repository branches'}])
+            vercel=Plugin(name='Vercel',url='https://mcp.vercel.com',credential=plugins.seal('test-connection-grant'),tools=[{'name':'get_deployment','schema':schema,'description':'Get a deployment'}])
             public=Plugin(name='A public docs service',url='https://docs.example.test/mcp',tools=[{'name':'search_docs','schema':schema,'description':'Search docs'}])
             oauth=Plugin(name='Windsor.ai existing accounts',url='https://mcp.windsor.ai/',tools=[{'name':'get_connectors','schema':schema,'description':'Read connected accounts'}])
             db.add_all([public,github,vercel,oauth]);await db.flush()
