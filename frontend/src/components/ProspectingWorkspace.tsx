@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { request } from '../lib/api';
 import { CYPHER_VOICE_INTRO } from '../lib/cypher-voice';
 import BinaryLens from './cipher/BinaryLens';
-import CipherIntro from './cipher/CipherIntro';
 import CypherMark from './cipher/CypherMark';
+import WorkflowShell from './WorkflowShell';
 import './prospecting-workspace.css';
 
 type Draft = { subject: string; body: string; status: 'local_draft'; recipient: null; review_required: boolean; source_urls: string[] };
@@ -292,16 +292,7 @@ export default function ProspectingWorkspace() {
     setRun(next); setSelected(''); setDraft(null); setPollError(''); setError('');
   }
 
-  return <main className="cipher cx-prospecting">
-    <CipherIntro />
-    <header className="cx-toolbar">
-      <a href="/" className="cx-word"><CypherMark className="cx-brand-image" decorative level={voiceLevel}/><span>Cypher</span></a>
-      <nav className="cx-nav" aria-label="Main navigation">
-        <a href="/workspace?plugins=1">Plugins</a>
-        <a href="/workspace">Workspace</a>
-      </nav>
-    </header>
-
+  return <WorkflowShell section="companies"><main className="cipher cx-prospecting">
     <section className="cx-hero cx-prospect-hero">
       <BinaryLens className="cx-lens" active={pending === 'profile' || active || voiceState === 'loading' || voiceState === 'playing'} level={voiceLevel} label="Cypher lens"/>
       <h1>Find your next customers</h1>
@@ -387,6 +378,6 @@ export default function ProspectingWorkspace() {
         <div className="cx-history"><div className="cx-log-head"><h2 className="cx-label">Recent research</h2></div>{runs.length === 0 ? <p>No saved runs yet.</p> : runs.slice(0, 6).map(item => <button key={item.id} type="button" className={item.id === runId ? 'is-selected' : ''} disabled={!!pending} onClick={() => selectRun(item)} aria-pressed={item.id === runId}><strong>{item.market}</strong><span>{statusLabel(item.status)} · {item.results.length} candidates</span></button>)}</div>
       </aside>
     </section>
-    <footer className="cx-footer"><span>Research runs through Open GrokBot’s authenticated backend.</span><a href="/workspace">Open full workspace</a></footer>
-  </main>;
+    <footer className="cx-footer"><span>Research and drafts are saved to your workspace.</span><a href="/workspace">Open workspace</a></footer>
+  </main></WorkflowShell>;
 }

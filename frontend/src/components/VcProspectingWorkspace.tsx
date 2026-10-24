@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { request } from '../lib/api';
-import CypherMark from './cipher/CypherMark';
+import WorkflowShell from './WorkflowShell';
 import './vc-prospecting.css';
 
 type Founder = {
@@ -197,11 +197,7 @@ export default function VcProspectingWorkspace() {
   }
 
   const activeRun = !!run && ACTIVE.has(run.status);
-  return <main className="vc-page">
-    <header className="vc-topbar">
-      <a className="vc-brand" href="/" aria-label="Cypher home"><CypherMark className="vc-brand-mark" decorative /></a>
-      <nav aria-label="Prospecting"><a href="/prospecting">Company prospecting</a><span>VC intelligence</span></nav>
-    </header>
+  return <WorkflowShell section="investors"><main className="vc-page">
 
     <section className="vc-hero">
       <h1>VC intelligence</h1>
@@ -305,5 +301,5 @@ export default function VcProspectingWorkspace() {
         <p className="vc-disclosure">{data?.limitations?.[0] || 'SEC related-person filings are public leads; only a filed title or role that says founder/co-founder is labeled as a founder. No personal contact details are included.'}</p>
       </section>
     </section>
-  </main>;
+  </main></WorkflowShell>;
 }

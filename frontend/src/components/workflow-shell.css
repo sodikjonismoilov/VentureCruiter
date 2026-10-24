@@ -1,0 +1,69 @@
+/* Research uses the same quiet desktop frame and task navigation as Cypher home. */
+.workflow-shell { position:relative; width:min(1160px,calc(100% - 48px)); height:calc(100dvh - 48px); min-height:520px; margin:24px auto; padding:24px 0 0; gap:0; overflow:hidden; border:1px solid var(--cx-sep); border-radius:20px; background:var(--cx-bg); box-shadow:0 16px 48px rgba(36,30,20,.08); }
+.workflow-window-chrome { position:absolute; inset:0 0 auto; display:flex; align-items:center; gap:6px; height:24px; padding-inline:14px; background:var(--cx-bg); }
+.workflow-window-chrome span { width:6px; height:6px; border-radius:50%; background:var(--cx-label-3); opacity:.35; }
+.workflow-shell .sidebar-shell { width:clamp(176px,var(--sidebar-width,184px),208px); border:0; background:var(--system-sidebar); }
+.workflow-shell .sidebar-shell[data-collapsed=true] { width:64px; }
+.workflow-shell .sidebar-layout-tools { min-height:80px; padding:16px; border:0; }
+.workflow-shell .workflow-navigation { padding:8px 12px 24px; }
+.workflow-navigation nav { display:grid; gap:4px; }
+.workflow-nav-link { display:flex; align-items:center; gap:12px; min-height:40px; padding:8px 12px; border-radius:10px; color:var(--cx-label); text-decoration:none; font-size:13px; line-height:1.5; }
+.workflow-nav-link:hover { background:var(--system-hover); }
+.workflow-nav-link svg { flex:none; width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.workflow-recent { margin-top:72px; min-width:0; }
+.workflow-recent h2 { margin:0 12px 12px; color:var(--cx-label-2); font-size:12px; font-weight:400; line-height:1.5; }
+.workflow-recent>a { display:block; overflow:hidden; padding:8px 12px; border-radius:8px; color:var(--cx-label); font-size:12px; line-height:1.5; text-decoration:none; text-overflow:ellipsis; white-space:nowrap; }
+.workflow-recent>a:hover { background:var(--system-hover); }
+.workflow-recent p { margin:0 12px; color:var(--cx-label-2); font-size:12px; line-height:1.6; }
+.workflow-recent-error button { margin:8px 12px; padding:0; font-size:12px; text-decoration:underline; text-underline-offset:3px; }
+.workflow-shell .sidebar-shell[data-collapsed=true] .workflow-nav-link { justify-content:center; padding-inline:0; }
+.workflow-shell .sidebar-shell[data-collapsed=true] :is(.workflow-nav-link span,.workflow-recent) { display:none; }
+.workflow-shell .workflow-main { display:flex; flex:1; flex-direction:column; min-width:0; min-height:0; border:0; border-radius:0; background:var(--cx-bg); }
+.workflow-mobile-brand { display:none; }
+.workflow-sections { display:flex; align-items:center; flex-wrap:wrap; gap:24px; min-height:56px; padding:8px 32px; border-bottom:1px solid var(--cx-sep); }
+.workflow-sections a { position:relative; display:flex; align-items:center; min-height:40px; color:var(--cx-label-2); text-decoration:none; font-size:13px; }
+.workflow-sections a[aria-current=page] { color:var(--cx-label); font-weight:500; }
+.workflow-sections a[aria-current=page]::after { position:absolute; right:0; bottom:-8px; left:0; height:1px; background:currentColor; content:''; }
+.workflow-content { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
+.workflow-content :is(.cx-prospecting,.vc-page) { min-height:100%; padding:24px 32px 32px; background:var(--cx-bg); }
+.workflow-content .cx-prospect-hero { padding:0 0 24px; }
+.workflow-content .cx-prospect-hero .cx-lens { width:min(320px,80%); height:auto; aspect-ratio:560/210; margin:0 auto 16px; }
+.workflow-content :is(.cx-prospect-hero h1,.vc-hero h1) { margin:0 0 8px; font-family:inherit; font-size:30px; font-weight:500; line-height:1.2; letter-spacing:-.025em; }
+.workflow-content .cx-prospect-hero>p { max-width:54ch; margin:0 auto; font-size:14px; line-height:1.6; }
+.workflow-content .cx-voice-control { margin-top:12px; }
+.workflow-content .cx-command { margin:24px auto 0; max-width:720px; }
+.workflow-content .cx-group { border-radius:16px; box-shadow:none; }
+.workflow-content .cx-prospect-flow { margin:0 0 24px; padding:16px; border-radius:12px; box-shadow:none; }
+.workflow-content .cx-profile-panel { margin-top:0; border-radius:12px; box-shadow:none; }
+.workflow-content .cx-results-area { padding:0; grid-template-columns:minmax(0,1fr) 224px; gap:24px; }
+.workflow-content :is(.cx-empty,.cx-detail-card,.cx-log>ol,.cx-provider-status) { border-radius:12px; box-shadow:none; }
+.workflow-content .cx-section-heading h2 { font-size:20px; line-height:1.3; }
+.workflow-content .cx-footer { margin:24px 0 0; padding:16px 0 0; font-size:12px; }
+.workflow-content .vc-hero { padding:8px 0 24px; text-align:left; }
+.workflow-content .vc-hero>p:last-child { max-width:65ch; margin:8px 0 0; font-size:14px; }
+.workflow-content .vc-grid { grid-template-columns:minmax(0,1fr); }
+.workflow-content .vc-source-summary { gap:8px 16px; padding:12px 0; border:0; border-radius:0; background:transparent; }
+.workflow-content :is(.vc-refresh-card,.vc-run-card,.vc-panel) { border-radius:12px; box-shadow:none; }
+.workflow-content :is(.vc-refresh-card h2,.vc-panel-heading h2) { font-size:20px; }
+.workflow-shell :is(a,button,input,textarea,select,summary):focus-visible { outline:2px solid var(--cx-label); outline-offset:3px; }
+@media(max-width:1000px) { .workflow-content .cx-results-area { grid-template-columns:minmax(0,1fr); } .workflow-content .cx-log { display:grid; grid-template-columns:1fr 1fr; gap:16px; } .workflow-content .cx-log>.cx-log-head,.workflow-content .cx-history { grid-column:1/-1; } }
+@media(max-width:760px) {
+  .workflow-shell { width:100%; height:100dvh; min-height:0; margin:0; padding:0; border:0; border-radius:0; box-shadow:none; }
+  .workflow-window-chrome { display:none; }
+  .workflow-mobile-brand { display:flex; align-items:center; justify-content:center; min-height:56px; padding:8px 56px; border-bottom:1px solid var(--cx-sep); }
+  .workflow-mobile-brand a { display:flex; align-items:center; gap:8px; color:var(--cx-label); font-size:14px; font-weight:500; text-decoration:none; }
+  .workflow-mobile-brand .cypher-mark { width:36px; }
+  .workflow-shell:has(.mobile-navigation[open]) .workflow-mobile-brand a { visibility:hidden; }
+  .workflow-sections { gap:24px; min-height:48px; padding:0 20px; }
+  .workflow-sections a { min-height:48px; font-size:12px; }
+  .workflow-sections a[aria-current=page]::after { bottom:0; }
+  .workflow-content :is(.cx-prospecting,.vc-page) { padding:24px 16px; }
+  .workflow-content :is(.cx-prospect-hero h1,.vc-hero h1) { font-size:28px; }
+  .workflow-content .cx-prospect-hero .cx-lens { width:240px; margin-bottom:16px; }
+  .workflow-content .cx-prospect-flow { gap:16px; padding:16px; }
+  .workflow-content .cx-log { display:block; }
+  .workflow-content .cx-voice-note { font-size:12px; }
+  .workflow-nav-link { min-height:44px; }
+  .workflow-content .vc-refresh-card { align-items:flex-start; flex-direction:column; gap:16px; }
+  .workflow-content .vc-search-grid { grid-template-columns:minmax(0,1fr); }
+}
