@@ -1,8 +1,8 @@
 /* Research uses the same quiet desktop frame and task navigation as Cypher home. */
-.workflow-shell { position:relative; width:min(1160px,calc(100% - 48px)); height:calc(100dvh - 48px); min-height:520px; margin:24px auto; padding:24px 0 0; gap:0; overflow:hidden; border:1px solid var(--cx-sep); border-radius:20px; background:var(--cx-bg); box-shadow:0 16px 48px rgba(36,30,20,.08); }
+.workflow-shell { position:relative; width:min(1114px,calc(100% - 48px)); height:min(622px,calc(100dvh - 48px)); min-height:520px; margin:24px auto; padding:24px 0 0; gap:0; overflow:hidden; border:1px solid var(--cx-sep); border-radius:20px; background:var(--cx-bg); box-shadow:0 16px 48px rgba(36,30,20,.08); }
 .workflow-window-chrome { position:absolute; inset:0 0 auto; display:flex; align-items:center; gap:6px; height:24px; padding-inline:14px; background:var(--cx-bg); }
 .workflow-window-chrome span { width:6px; height:6px; border-radius:50%; background:var(--cx-label-3); opacity:.35; }
-.workflow-shell .sidebar-shell { width:clamp(176px,var(--sidebar-width,184px),208px); border:0; background:var(--system-sidebar); }
+.workflow-shell .sidebar-shell { width:clamp(176px,var(--sidebar-width,184px),184px); border:0; background:var(--system-sidebar); }
 .workflow-shell .sidebar-shell[data-collapsed=true] { width:64px; }
 .workflow-shell .sidebar-layout-tools { min-height:80px; padding:16px; border:0; }
 .workflow-shell .workflow-navigation { padding:8px 12px 24px; }
