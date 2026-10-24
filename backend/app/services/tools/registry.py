@@ -523,12 +523,16 @@ class ToolRegistry:
         if bot is None or not getattr(bot, "tools_enabled", None):
             return [t["definition"] for t in self._tools.values()]
 
+        # Public SEC sourcing is also a browser research capability. Existing
+        # agents created before the dedicated prospecting category must retain
+        # access without recreating their agents or changing connected grants.
+        vc_research = ["search_vc_founders", "start_vc_investor_match", "get_vc_investor_match", "prepare_vc_outreach"]
         # Map tool category names to tool prefixes
         category_map = {
             "plugins": "plugin_",
             "media": ["generate_image"],
-            "browser": ["search_web", "browse_url", "browser_click", "browser_type", "browser_screenshot", "browser_extract", "browser_fill_form"],
-            "prospecting": ["search_vc_founders", "start_vc_investor_match", "get_vc_investor_match", "label_vc_investor_match", "prepare_vc_outreach"],
+            "browser": ["search_web", "browse_url", "browser_click", "browser_type", "browser_screenshot", "browser_extract", "browser_fill_form", *vc_research],
+            "prospecting": [*vc_research, "label_vc_investor_match"],
             "shell": "shell",
             "filesystem": ["local_device", "workspace_files", "publish_file", "read_file", "write_file", "list_directory", "search_files"],
         }
