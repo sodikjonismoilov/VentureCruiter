@@ -1,0 +1,23 @@
+{
+  "investor": {"name": "Alex Rivera", "firm": "Example Ventures"},
+  "records": [
+    {
+      "founder_name": "Maya Chen",
+      "company": "Ledgerline (fictional)",
+      "website": "https://example.com/ledgerline",
+      "why": "Automates insurance claims and payment collection for independent vet clinics, the exact back-office wedge in the thesis.",
+      "quote": "Independent clinics shouldn't have to sell to a roll-up to get modern billing.",
+      "quote_url": "https://example.com/ledgerline/about",
+      "thesis": "Seed-stage AI back-office software for independent veterinary clinics."
+    },
+    {
+      "founder_name": "",
+      "company": "PawSched (fictional)",
+      "website": "https://example.com/pawsched",
+      "why": "AI front desk that handles rebooking and reminders on top of existing practice-management systems.",
+      "quote": "We sit on top of whatever PMS a clinic already runs.",
+      "quote_url": "https://example.com/pawsched",
+      "thesis": "Seed-stage AI back-office software for independent veterinary clinics."
+    }
+  ]
+}

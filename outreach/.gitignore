@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+funnel_records.json
+data/
+runs.json
+runs*.json
