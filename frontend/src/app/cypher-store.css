@@ -96,3 +96,49 @@
 @media (prefers-reduced-motion: reduce) { .app-store-dialog .connector-entry, .composer .composer-voice-mark { transition: none; transform: none; } }
 html[data-motion="false"] .app-store-dialog .connector-entry,
 html[data-motion="false"] .composer .composer-voice-mark { transition: none; transform: none; }
+
+/* Authentic app identities and saved account state on Cypher's quiet canvas. */
+.app-store-dialog .apps-connected { margin:24px 0; }
+.app-store-dialog .website-search input { padding-left:42px; }
+.apps-section-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:0 0 12px; }
+.apps-section-heading h3 { margin:0; color:var(--cx-label); font-size:15px; font-weight:500; }
+.apps-section-heading button { padding:4px 0; color:var(--cx-label-2); font-size:12px; text-underline-offset:3px; }
+.apps-section-heading button:hover { color:var(--cx-label); text-decoration:underline; }
+.apps-connected-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.apps-account-card { display:flex; align-items:flex-start; gap:12px; min-width:0; min-height:88px; padding:16px; border:1px solid var(--cx-sep); border-radius:12px; background:var(--cx-card); color:var(--cx-label); text-align:left; }
+.apps-account-card:hover { border-color:var(--cx-label-3); }
+.app-store-dialog .apps-account-card .connector-logo { display:grid; flex:none; width:30px; height:30px; padding:0; border-radius:0; background:transparent; }
+.app-store-dialog .apps-account-card .connector-logo img { width:28px; height:28px; object-fit:contain; filter:none; }
+.app-store-dialog .connector-logo img { filter:none; }
+.apps-account-copy { display:grid; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.apps-account-copy strong { font-size:13px; line-height:1.4; font-weight:500; }
+.apps-account-copy>span { color:var(--cx-label-2); font-size:12px; line-height:1.4; }
+.apps-account-copy small { color:var(--cx-label-2); font-size:11px; line-height:1.5; }
+.apps-empty-connections { margin:0; color:var(--cx-label-2); font-size:13px; line-height:1.6; }
+.app-store-dialog .google-provider-icon { background:transparent; }
+.google-provider-icon svg { display:block; width:30px; height:30px; }
+.app-store-dialog.apps-workspace { position:relative; inset:auto; display:flex; flex:1; flex-direction:column; width:100%; height:100%; max-width:none; max-height:none; min-height:0; margin:0; padding:0; border:0; border-radius:0; background:var(--cx-bg); box-shadow:none; }
+.apps-workspace .connectors-header { min-height:88px; padding:24px 32px 16px; border-bottom:0; background:transparent; }
+.apps-workspace .connectors-header h2 { font-size:24px; font-weight:500; line-height:1.25; }
+.apps-workspace .connectors-body { padding:24px 32px; background:transparent; }
+.apps-workspace .connector-tabs { padding-inline:32px; background:transparent; }
+.apps-workspace .store-section-heading { display:none; }
+.apps-workspace .website-connect { margin-top:0; }
+.apps-workspace .store-featured-grid { margin-block:24px; }
+.apps-workspace .store-featured-card { border-radius:12px; }
+.apps-workspace .connector-catalog { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.apps-workspace .connector-entry { min-height:0; padding:16px; border-radius:12px; }
+.apps-workspace .connector-entry>p { font-size:12px; line-height:1.5; }
+.apps-workspace .connector-entry .connector-logo { width:32px; height:32px; border-radius:0; background:transparent; }
+.apps-workspace .connector-entry .connector-logo img { width:28px; height:28px; }
+.apps-workspace .store-categories { flex-wrap:wrap; overflow:visible; }
+.apps-workspace :is(button,a,input,select):focus-visible { outline:2px solid var(--cx-label); outline-offset:3px; }
+@media(max-width:1050px) { .apps-connected-grid,.apps-workspace .connector-catalog { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) {
+  .apps-connected-grid,.apps-workspace .connector-catalog { grid-template-columns:minmax(0,1fr); }
+  .apps-section-heading button { min-width:44px; min-height:44px; }
+  .apps-workspace .connectors-header { padding:20px 16px 12px; }
+  .apps-workspace .connectors-body { padding:20px 16px; }
+  .apps-workspace .connector-tabs { padding-inline:16px; }
+  .apps-account-card { min-height:88px; }
+}

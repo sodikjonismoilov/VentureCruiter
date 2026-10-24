@@ -5,7 +5,7 @@ const auth=load('../src/lib/pluginAuthorization.ts',{}, {URL,Date});
 const id='e52dad3f-b0db-4cf8-a0f0-f9b88c16f230';
 const item={id:'fixture',name:'Fixture Service',url:'https://provider.example/mcp',domains:['provider.example'],description:'Synthetic service',category:'Testing'};
 const pending={id,name:item.name,url:'https://provider.example/allow?state=synthetic',startedAt:0};
-function panel({saved={},popupBlocked=false,api:overrides={}}={}){
+function panel({saved={},popupBlocked=false,api:overrides={},embedded=false}={}){
   const session=storage(saved),env=environment(session),view=renderer(env);let opens=0,closed=0;
   const popup={closed:false,opener:{},document:{title:'',createElement:()=>({style:{}}),body:{appendChild(){}}},location:{replace(){}},focus(){},close(){this.closed=true;closed++;}};
   env.document.createElement=()=>({style:{}});
@@ -15,10 +15,26 @@ function panel({saved={},popupBlocked=false,api:overrides={}}={}){
   const api={getPluginCatalog:async()=>[item],getPlugins:async()=>[],deviceStatus:async()=>({enrolled:false}),getAvailableConnections:async()=>[],pluginSyncStatus:async()=>null,accountStatus:async()=>({}),authorizePlugin:async()=>({status:'awaiting_login',flow_id:id,authorization_url:pending.url,name:item.name}),pluginAuthStatus:async()=>({status:'awaiting_login',name:item.name}),cancelPluginAuth:async()=>({status:'cancelled'}),...overrides};
   const scopedAuth=load('../src/lib/pluginAuthorization.ts',{}, {URL,Date:env.globals.Date});
   const {PluginPanel}=load('../src/components/PluginPanel.tsx',{react:view.react,'./LoadingState':{LoadingState:'loading-state'},'../lib/api':{api},'../lib/canonical-app':load('../src/lib/canonical-app.ts',{}, {URL}),'../lib/device':{approveConnection:async()=>undefined,enrollDevice:async()=>{}},'../lib/pluginAuthorization':scopedAuth,'./McpDirectory':{McpDirectory:'mcp-directory'},'./cipher/CypherMark':{__esModule:true,default:'cypher-mark'},'./cipher/BinaryLens':{__esModule:true,default:'binary-lens'}},{...env.globals,URL,URLSearchParams,React:view.react.default,fetch:async()=>({json:async()=>({})})});
-  view.mount(()=>PluginPanel({onClose(){}}));
+  view.mount(()=>PluginPanel({onClose(){},embedded}));
   return {env,view,api,session,popup,get opens(){return opens;},get closed(){return closed;}};
 }
 async function connect(p){await p.view.flush();button(p.view.tree,'Connect').props.onClick();await p.view.flush();await p.view.flush();}
+
+test('embedded app management opens the saved connection without reauthorizing or claiming a tool test',async()=>{
+  let authorizations=0;
+  const p=panel({embedded:true,api:{getPlugins:async()=>[{id:'linked-account',name:item.name,url:item.url,enabled:true,authenticated:true,tools:[{name:'read_source',description:'Read a source',enabled:true}]}],authorizePlugin:async()=>{authorizations++;throw Error('Management must not start authorization');}}});
+  await p.view.flush();
+  assert.equal(p.view.tree.type,'section');
+  assert.match(textOf(p.view.tree),/Not tested/);
+  find(p.view.tree,n=>n.type==='button'&&n.props?.['aria-label']==='Manage Fixture Service').props.onClick();
+  await p.view.flush();
+  assert.equal(authorizations,0);
+  assert.equal(p.opens,0);
+  assert.match(textOf(p.view.tree),/Account or API access linked/);
+  assert.match(textOf(p.view.tree),/Execution not tested/);
+  assert.ok(find(p.view.tree,n=>n.type==='button'&&n.props?.['aria-label']==='Enable Fixture Service'));
+  p.view.unmount();
+});
 
 test('blocked popup leaves a working provider link and the conversation in place',async()=>{
   const p=panel({popupBlocked:true});await connect(p);
