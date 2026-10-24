@@ -228,6 +228,18 @@ class AgentOrchestrator:
                 if len(assignments) == 3:
                     break
 
+            # A planner can answer instead of emitting HANDOFF syntax. Explicitly
+            # requested teammates still owe the user their own contribution.
+            for specialist in bots:
+                if specialist.id == coordinator.id or specialist.id in seen or len(assignments) >= 3:
+                    continue
+                labels = [specialist.name]
+                if len(by_role.get(specialist.role.casefold(), [])) == 1:
+                    labels.append(specialist.role)
+                if any(label and re.search(r'(?<!\w)' + re.escape(label) + r'(?!\w)', message, re.IGNORECASE) for label in labels):
+                    assignments.append((specialist, f'Complete your requested {specialist.role} contribution to the original user request.'))
+                    seen.add(specialist.id)
+
             self.planning = False
             self.phase_instructions = "Complete only your assigned part. Use enabled tools when needed, verify results, and report evidence and blockers."
             for specialist, task in assignments:
