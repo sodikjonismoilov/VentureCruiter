@@ -256,7 +256,10 @@ async def test_old_workspace_revision_fast_path_still_bootstraps_opted_in_admiss
     class Connection:
         dialect = SimpleNamespace(name="postgresql")
         async def execute(self, statement): called.append(str(statement))
-        async def scalar(self, statement): return "2026-10-21-workspace-computer-v3"
+        async def scalar(self, statement):
+            if 'SELECT version' in str(statement):
+                return "2026-10-21-workspace-computer-v3"
+            return None
         async def run_sync(self, operation): called.append(operation)
     @asynccontextmanager
     async def begin(): yield Connection()

@@ -121,8 +121,8 @@ class ToolRegistry:
             plugin.id: bool(plugin.credential) or plugin.id in oauth_connections
             for plugin in connections
         }
-        from app.services.plugins import is_read_only, reveal
-        google_ids={p.id for p in connections if p.credential and reveal(p.credential)=='grokbot-google-workspace'}
+        from app.services.plugins import is_read_only, is_google_workspace
+        google_ids={p.id for p in connections if is_google_workspace(p)}
         manifest = [{**tool, 'plugin_id':p.id, 'service':p.name, 'authenticated':account_linked[p.id], 'provider':'google' if p.id in google_ids else None, 'read_only':is_read_only(p.url, tool)} for p in connections for tool in p.tools if tool.get('enabled', True)]
         self._plugin_manifest = manifest
         if not manifest:

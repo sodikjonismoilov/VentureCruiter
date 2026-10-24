@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from urllib.parse import urlsplit
 import httpx
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 from app.config import settings
@@ -35,7 +35,7 @@ def transient_failure(error):
 
 def authentication_failure(error):
     from app.services.plugin_auth import SignInRequired
-    if isinstance(error, SignInRequired): return True
+    if isinstance(error, (SignInRequired, InvalidToken)): return True
     if type(error).__name__ in {'UserAuthorizationRequiredError','InvalidGrantError','NoValidTokenError','AuthorizationExpiredError'}:return True
     if getattr(getattr(error, 'response', None), 'status_code', None) in {401,403}: return True
     return any(authentication_failure(child) for child in getattr(error, 'exceptions', []))
@@ -108,6 +108,14 @@ def seal(token): return cipher().encrypt(token.encode()).decode() if token else 
 
 def reveal(token): return cipher().decrypt(token.encode()).decode() if token else None
 
+def is_google_workspace(plugin):
+    # One damaged or outdated saved credential must not prevent discovery of
+    # every other connection. Invocation still authenticates and fails closed.
+    try:
+        return reveal(plugin.credential) == 'grokbot-google-workspace'
+    except (InvalidToken, ValueError):
+        return False
+
 def http_client(headers=None, timeout=None, auth=None):
     async def guard(request):
         parsed = urlsplit(str(request.url))
@@ -172,7 +180,7 @@ async def invoke(plugin_id, tool_name, arguments):
             return {'success':False, 'error': 'Plugin or tool is disabled.', 'code':'disabled'}
         tool = next(t for t in plugin.tools if t['name'] == tool_name)
         from app.services import google_workspace
-        if reveal(plugin.credential)==google_workspace.REFERENCE:
+        if is_google_workspace(plugin):
             try:return await google_workspace.invoke(db,tool_name,arguments)
             except Exception as error:return {'success':False,'error':str(getattr(error,'detail','Google did not complete this operation.')),'code':'google_unavailable'}
         from jsonschema import Draft202012Validator, ValidationError, SchemaError

@@ -9,6 +9,34 @@ from app.db.tenancy import current_tenant_id
 from app.services import plugins,plugin_sync
 from .test_workspace_workflows import workspace
 
+@pytest.mark.asyncio
+async def test_unreadable_credential_keeps_other_tools_discoverable_and_fails_closed(workspace, monkeypatch):
+    from app.db import session as database
+    from app.services.tools.registry import ToolRegistry
+    _, sessions = workspace
+    monkeypatch.setattr(database, 'AsyncSessionLocal', sessions)
+    owner = current_tenant_id.set('credential-recovery-owner')
+    try:
+        async with sessions() as db:
+            schema = {'type': 'object', 'properties': {}}
+            broken = Plugin(name='Expired connection', url='https://expired.example/mcp',
+                            credential='unreadable-saved-credential', enabled=True,
+                            tools=[{'name':'read_record', 'schema':schema}])
+            working = Plugin(name='Public documentation', url='https://docs.example/mcp',
+                             enabled=True, tools=[{'name':'search_docs', 'schema':schema}])
+            db.add_all([broken, working])
+            await db.commit()
+            registry = ToolRegistry()
+            await registry.load_plugins(db, SimpleNamespace(tools_enabled=['plugins']))
+            found = await registry._tools['plugin_search']['handler'](
+                {'query':'search_docs', 'plugin_id':working.id}, 'test-agent')
+            assert found['tools'][0]['plugin_id'] == working.id
+            result = await plugins.invoke(broken.id, 'read_record', {})
+            assert result['success'] is False and result['code'] == 'sign_in_required'
+            assert 'unreadable-saved-credential' not in json.dumps(result)
+    finally:
+        current_tenant_id.reset(owner)
+
 def test_structured_and_media_results_are_not_lost_or_unbounded():
     result=plugins.tool_result(CallToolResult(content=[],structuredContent={'value':42}),'service')
     assert result['success'] and result['structured_content']=={'value':42} and '42' in result['content']
