@@ -21,5 +21,5 @@ export default function ProspectingPage({ searchParams }: { searchParams?: Recor
     const returnTo = internalPathWithSearch('/prospecting', searchParams);
     redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
-  return <ProspectingWorkspace/>;
+  return <ProspectingWorkspace accountId={session?.sub}/>;
 }

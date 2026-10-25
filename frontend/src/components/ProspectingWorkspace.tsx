@@ -52,7 +52,7 @@ const statusLabel = (status: string) => STATUS_LABELS[status] || status.replace(
 const errorText = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong. Please try again.';
 const localTime = (value: string) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-export default function ProspectingWorkspace() {
+export default function ProspectingWorkspace({ accountId }: { accountId?: string } = {}) {
   const [url, setUrl] = useState('');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [manual, setManual] = useState(false);
@@ -74,6 +74,7 @@ export default function ProspectingWorkspace() {
   const [voiceState, setVoiceState] = useState<VoiceState>('checking');
   const [voiceError, setVoiceError] = useState('');
   const [voiceLevel, setVoiceLevel] = useState(0);
+  const [restoredForm, setRestoredForm] = useState(false);
   const inFlight = useRef(false);
   const operation = useRef<AbortController | null>(null);
   const voiceAudio = useRef<HTMLAudioElement | null>(null);
@@ -84,6 +85,33 @@ export default function ProspectingWorkspace() {
   const active = !!run && !terminal(run.status);
   const candidate = run?.results.find(item => item.id === selected) || run?.results[0];
   const runId = run?.id;
+  const signInHref = `/login?returnTo=${encodeURIComponent('/prospecting')}`;
+  const formRecoveryKey = accountId ? `grokbot.prospecting-form.v1.${encodeURIComponent(accountId)}` : '';
+
+  useEffect(() => {
+    if (!formRecoveryKey) return;
+    try {
+      const raw = sessionStorage.getItem(formRecoveryKey);
+      if (!raw) return;
+      sessionStorage.removeItem(formRecoveryKey);
+      const saved = JSON.parse(raw);
+      if (saved?.version !== 1 || typeof saved.url !== 'string' || typeof saved.market !== 'string' || typeof saved.product !== 'string') return;
+      setUrl(saved.url.slice(0, 2048));
+      setManual(saved.manual === true);
+      setMarket(saved.market.slice(0, 300));
+      setProduct(saved.product.slice(0, 2000));
+      setRestoredForm(true);
+    } catch {
+      try { sessionStorage.removeItem(formRecoveryKey); } catch {}
+    }
+  }, [formRecoveryKey]);
+
+  function preserveFormBeforeSignIn() {
+    if (!formRecoveryKey) return;
+    try {
+      sessionStorage.setItem(formRecoveryKey, JSON.stringify({ version: 1, url, manual, market, product }));
+    } catch {}
+  }
 
   useEffect(() => {
     let active = true;
@@ -316,7 +344,8 @@ export default function ProspectingWorkspace() {
         </div>
         <small className="cx-helper">Reads public HTTPS pages that allow automated access. Your extracted offer stays editable before research.</small>
       </form>
-      {error && <div id="company-site-error" role="alert" className="cx-error">{error}{/sign in|session/i.test(error) ? <> <a href="/login">Sign in</a></> : null}</div>}
+      {error && <div id="company-site-error" role="alert" className="cx-error">{error}{/sign in|session/i.test(error) ? <> <a href={signInHref} onClick={preserveFormBeforeSignIn}>Sign in</a></> : null}</div>}
+      {restoredForm && <p className="cx-source-note" role="status">Your research setup is back. Review it and confirm before starting.</p>}
     </section>
 
     <section className="cx-prospect-flow" aria-label="Prospecting workflow">
@@ -350,7 +379,7 @@ export default function ProspectingWorkspace() {
           })}>{pending === 'cancel' || run?.status === 'cancel_requested' ? 'Stopping…' : 'Stop research'}</button>}
         </div>
         {pollError && <div role="alert" className="cx-error cx-poll-error">{pollError}<button type="button" className="cx-inline-button" disabled={!!pending} onClick={() => setRetry(value => value + 1)}>Retry status check</button></div>}
-        {historyError && <div role="alert" className="cx-error cx-history-error"><span>{historyError}</span><div><button type="button" className="cx-inline-button" disabled={!!pending} onClick={() => setRetry(value => value + 1)}>Retry</button><a href={/sign in|session/i.test(historyError) ? '/login' : '/workspace'}>{/sign in|session/i.test(historyError) ? 'Sign in' : 'Workspace setup'}</a></div></div>}
+        {historyError && <div role="alert" className="cx-error cx-history-error"><span>{historyError}</span><div><button type="button" className="cx-inline-button" disabled={!!pending} onClick={() => setRetry(value => value + 1)}>Retry</button><a href={/sign in|session/i.test(historyError) ? signInHref : '/workspace'} onClick={/sign in|session/i.test(historyError) ? preserveFormBeforeSignIn : undefined}>{/sign in|session/i.test(historyError) ? 'Sign in' : 'Workspace setup'}</a></div></div>}
         {run && <div className="cx-truth-note"><strong>Company candidates, not verified customers.</strong><span>Relevance uses text overlap. Demand, contacts, and competitor status need separate verification.</span></div>}
         {!run ? <div className="cx-empty"><BinaryLens className="cx-empty-lens" cols={21} rows={9} label="Cypher lens"/><h3>A better shortlist starts with context.</h3><p>Enter your company website above, then edit the customer profile before research.</p></div> : null}
         {run && !run.results.length && <div className="cx-empty cx-empty-compact"><div className={active ? 'cx-loading-pulse' : 'cx-empty-dot'} aria-hidden="true"/><h3>{active ? 'Checking public company descriptions…' : 'No qualifying company candidates.'}</h3><p>{active ? 'Verified results appear here as the backend saves them.' : 'Try a more specific customer market or adjust your offer. Public source coverage is limited.'}</p></div>}
