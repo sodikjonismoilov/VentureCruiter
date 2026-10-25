@@ -1,7 +1,7 @@
 'use client';
 
-import React, { lazy, useEffect, useRef, useState } from 'react';
-import { PanelBoundary } from './PanelBoundary';
+import React, { useEffect, useRef, useState } from 'react';
+import { PanelBoundary, RetryablePanel } from './PanelBoundary';
 import { useBots } from '../hooks/useBots';
 import { BotRoster } from '../components/BotRoster';
 import { SidebarShell } from '../components/SidebarShell';
@@ -13,14 +13,23 @@ import { api,request } from '../lib/api';
 import { CommandPalette, WorkspaceCommand } from './CommandPalette';
 import CypherEntrance from './cipher/CypherEntrance';
 
-const BotCreator = lazy(() => import('./BotCreator').then(module => ({ default: module.BotCreator })));
-const PluginPanel = lazy(() => import('./PluginPanel').then(module => ({ default: module.PluginPanel })));
-const GoalsPanel = lazy(() => import('./GoalsPanel').then(module => ({ default: module.GoalsPanel })));
-const ChannelsPanel = lazy(() => import('./ChannelsPanel').then(module => ({ default: module.ChannelsPanel })));
-const WorkspaceSetup = lazy(() => import('./WorkspaceSetup').then(module => ({ default: module.WorkspaceSetup })));
-const RoomCreator = lazy(() => import('./RoomCreator').then(module => ({ default: module.RoomCreator })));
-const WorkspaceHub = lazy(() => import('./WorkspaceHub').then(module => ({ default: module.WorkspaceHub })));
-const ComputerPanel = lazy(() => import('./ComputerPanel').then(module => ({ default: module.ComputerPanel })));
+const loadBotCreator = () => import('./BotCreator').then(module => ({ default: module.BotCreator }));
+const loadPluginPanel = () => import('./PluginPanel').then(module => ({ default: module.PluginPanel }));
+const loadGoalsPanel = () => import('./GoalsPanel').then(module => ({ default: module.GoalsPanel }));
+const loadChannelsPanel = () => import('./ChannelsPanel').then(module => ({ default: module.ChannelsPanel }));
+const loadWorkspaceSetup = () => import('./WorkspaceSetup').then(module => ({ default: module.WorkspaceSetup }));
+const loadRoomCreator = () => import('./RoomCreator').then(module => ({ default: module.RoomCreator }));
+const loadWorkspaceHub = () => import('./WorkspaceHub').then(module => ({ default: module.WorkspaceHub }));
+const loadComputerPanel = () => import('./ComputerPanel').then(module => ({ default: module.ComputerPanel }));
+
+const BotCreator = (props: Parameters<typeof import('./BotCreator').BotCreator>[0]) => <RetryablePanel loader={loadBotCreator} componentProps={props}/>;
+const PluginPanel = (props: Parameters<typeof import('./PluginPanel').PluginPanel>[0]) => <RetryablePanel loader={loadPluginPanel} componentProps={props}/>;
+const GoalsPanel = (props: Parameters<typeof import('./GoalsPanel').GoalsPanel>[0]) => <RetryablePanel loader={loadGoalsPanel} componentProps={props}/>;
+const ChannelsPanel = (props: Parameters<typeof import('./ChannelsPanel').ChannelsPanel>[0]) => <RetryablePanel loader={loadChannelsPanel} componentProps={props}/>;
+const WorkspaceSetup = (props: Parameters<typeof import('./WorkspaceSetup').WorkspaceSetup>[0]) => <RetryablePanel loader={loadWorkspaceSetup} componentProps={props}/>;
+const RoomCreator = (props: Parameters<typeof import('./RoomCreator').RoomCreator>[0]) => <RetryablePanel loader={loadRoomCreator} componentProps={props}/>;
+const WorkspaceHub = (props: Parameters<typeof import('./WorkspaceHub').WorkspaceHub>[0]) => <RetryablePanel loader={loadWorkspaceHub} componentProps={props}/>;
+const ComputerPanel = (props: Parameters<typeof import('./ComputerPanel').ComputerPanel>[0]) => <RetryablePanel loader={loadComputerPanel} componentProps={props}/>;
 
 const PANEL_TITLES = { bot: 'Create agent', room: 'Create team', setup: 'Workspace setup', plugins: 'Connected tools', preferences: 'Appearance', goals: 'Goals', channels: 'Channels', hub: 'Workspace library', computer: 'Computer' };
 
