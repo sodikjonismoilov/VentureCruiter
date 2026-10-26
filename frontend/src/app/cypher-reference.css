@@ -36,9 +36,9 @@ body { overflow: hidden; }
   isolation: isolate;
   display: flex;
   width: min(1114px, calc(100vw - 40px));
-  height: min(622px, calc(100dvh - 12px));
-  min-height: min(560px, calc(100dvh - 12px));
-  margin: 6px auto;
+  height: calc(100dvh - 24px);
+  min-height: min(560px, calc(100dvh - 24px));
+  margin: 12px auto;
   padding-top: 34px;
   overflow: hidden;
   border: 1px solid #e4ded2;
