@@ -58,6 +58,7 @@ export function WorkspaceHub({bots,rooms,ensureRoom,onRefresh,onOpenWorkspace,on
  async function load(){
   const requestId=++latestWorkspaceLoad.current;
   const revisions={preferences:preferenceRevision.current,notifications:notificationRevision.current,usage:usageRevision.current};
+  setError('');
   setLoading(true);
   const results=await Promise.allSettled([request('/workspace/knowledge'),request('/workspace/routines'),request('/workspace/runs'),request('/workspace/notifications'),request('/workspace/usage'),request('/workspace/settings')]);
   if(requestId!==latestWorkspaceLoad.current)return;

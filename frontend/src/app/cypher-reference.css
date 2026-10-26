@@ -187,6 +187,7 @@ body { overflow: hidden; }
 .cypher-recent-tasks h2 { margin: 0 0 5px; color: var(--cx-label-2); font-size: 10px; font-weight: 500; }
 .cypher-recent-tasks > button { display: flex; min-width: 0; min-height: 30px; align-items: center; gap: 7px; padding: 4px 3px; border-radius: 6px; background: transparent; color: var(--cx-label); text-align: left; transition: background .16s ease, transform .16s ease; }
 .cypher-recent-tasks > button:hover { background: var(--system-hover); transform: translateX(2px); }
+.cypher-recent-tasks > .recent-task-retry { color: var(--cx-label-2); font-size: 10px; text-decoration: underline; }
 .cypher-recent-tasks > button > span:last-child { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .cypher-recent-tasks > p { margin: 3px 0; color: var(--cx-label-2); font-size: 10px; }
 .cypher-task-dot { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: var(--cx-label); }
