@@ -50,6 +50,7 @@
 .vc-data-facts b { color: var(--cx-label, #171715); font-weight: 550; }
 .vc-history-progress { color: var(--cx-label, #171715)!important; font-weight: 550; }
 .vc-inline-error { color: #8a403a!important; }
+.vc-inline-error button, .vc-inline-error a, .vc-alert a { margin-left: 5px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .vc-data-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .vc-data-actions button, .vc-reload, .vc-pagination button { min-height: 31px; padding: 0 11px; border: 1px solid var(--cx-sep, #e7e5df); border-radius: 16px; background: var(--cx-card, #fff); font-size: 10px; }
 .vc-data-actions button:hover, .vc-reload:hover, .vc-pagination button:hover:not(:disabled) { background: var(--cx-fill, #efeee9); }

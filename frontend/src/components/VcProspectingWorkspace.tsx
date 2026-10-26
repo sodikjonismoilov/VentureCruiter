@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, request } from '../lib/api';
 import WorkflowShell from './WorkflowShell';
 import './vc-prospecting.css';
@@ -40,6 +40,7 @@ const errorMessage = (error: unknown) => {
   }
   return 'That step didn’t finish. Please try again.';
 };
+const retryable = (error: unknown) => !(error instanceof ApiError) || error.status === 408 || error.status === 429 || error.status >= 500;
 const dateLabel = (value: string | null | undefined) => value ? new Date(value).toLocaleDateString() : 'Not refreshed yet';
 
 function VcIcon({ kind }: { kind: 'back' | 'check' | 'chevron' | 'search' | 'external' }) {
@@ -61,6 +62,12 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
   const [thesis, setThesis] = useState('Source recent SEC Form D issuer filings across industries for venture investor research. Treat filing-named people as related persons; label someone as a founder only when a filing explicitly says founder or co-founder. Do not contact anyone or add personal contact details.');
   const [industries, setIndustries] = useState('');
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoadError, setHistoryLoadError] = useState('');
+  const [historyLoadRetry, setHistoryLoadRetry] = useState(0);
+  const [historyPollError, setHistoryPollError] = useState('');
+  const [historyPollNeedsSignIn, setHistoryPollNeedsSignIn] = useState(false);
+  const [historyPollRetry, setHistoryPollRetry] = useState(0);
   const [searching, setSearching] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startingHistory, setStartingHistory] = useState(false);
@@ -74,6 +81,7 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
   const [shortlistItems, setShortlistItems] = useState<Founder[]>([]);
   const shortlistKey = accountId ? `cypher-vc-shortlist:${accountId}` : null;
   const [shortlistLoadedFor, setShortlistLoadedFor] = useState<string | null>(null);
+  const founderRequestSequence = useRef(0);
 
   useEffect(() => {
     setShortlistItems([]);
@@ -99,6 +107,7 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
   }, [data, shortlistItems, selectedFounderId]);
 
   const loadFounders = useCallback(async (nextOffset: number, signal?: AbortSignal) => {
+    const sequence = ++founderRequestSequence.current;
     const params = new URLSearchParams();
     if (query.trim()) params.set('q', query.trim());
     if (industry.trim()) params.set('industry', industry.trim());
@@ -106,31 +115,46 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
     if (founderOnly) params.set('founder_only', 'true');
     params.set('limit', '25');
     params.set('offset', String(nextOffset));
-    const next: FounderPage = await request(`/prospecting/investors/founders?${params.toString()}`, { signal });
-    setData(next);
-    setOffset(nextOffset);
+    let next: FounderPage;
+    try { next = await request(`/prospecting/investors/founders?${params.toString()}`, { signal }); }
+    catch (failure) { if (signal?.aborted || sequence !== founderRequestSequence.current) return null; throw failure; }
+    if (!signal?.aborted && sequence === founderRequestSequence.current) {
+      setData(next);
+      setOffset(nextOffset);
+    }
     return next;
   }, [founderOnly, industry, query, state]);
 
   const loadRuns = useCallback(async (signal?: AbortSignal) => {
     const rows: MatchRun[] = await request('/prospecting/investors/runs', { signal });
-    setRuns(rows);
-    setRun(current => current || rows[0] || null);
+    if (!signal?.aborted) {
+      setRuns(rows);
+      setRun(current => current || rows[0] || null);
+    }
     return rows;
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
+    const sequence = ++founderRequestSequence.current;
     setLoading(true);
     const params = new URLSearchParams({ limit: '25', offset: '0' });
-    Promise.all([
-      request(`/prospecting/investors/founders?${params.toString()}`, { signal: controller.signal }) as Promise<FounderPage>,
-      loadRuns(controller.signal),
-    ]).then(([next]) => { if (!controller.signal.aborted) setData(next); })
-      .catch(failure => { if (!controller.signal.aborted) setError(errorMessage(failure)); })
+    request(`/prospecting/investors/founders?${params.toString()}`, { signal: controller.signal })
+      .then((next: FounderPage) => { if (!controller.signal.aborted && sequence === founderRequestSequence.current) setData(next); })
+      .catch(failure => { if (!controller.signal.aborted && sequence === founderRequestSequence.current) setError(errorMessage(failure)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [loadRuns]); // Initial load only; searches are submitted explicitly.
+  }, []); // Initial SEC data load only; searches are submitted explicitly.
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setHistoryLoading(true);
+    setHistoryLoadError('');
+    loadRuns(controller.signal)
+      .catch(failure => { if (!controller.signal.aborted) setHistoryLoadError(errorMessage(failure)); })
+      .finally(() => { if (!controller.signal.aborted) setHistoryLoading(false); });
+    return () => controller.abort();
+  }, [historyLoadRetry, loadRuns]);
 
   useEffect(() => {
     if (!run?.id || !ACTIVE.has(run.status)) return;
@@ -163,26 +187,37 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
     if (!status || !['pending', 'running'].includes(status)) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
+    setHistoryPollError('');
+    setHistoryPollNeedsSignIn(false);
     const poll = async () => {
       try {
         const next: FounderHistory = await request('/prospecting/investors/founders/backfill', { signal: controller.signal });
         if (controller.signal.aborted) return;
+        setHistoryPollError('');
+        setHistoryPollNeedsSignIn(false);
         setData(current => current ? { ...current, database: { ...current.database, historical: next } } : current);
         if (['pending', 'running'].includes(next.status)) timer = setTimeout(poll, 5000);
         else if (next.status === 'completed') {
-          await loadFounders(0);
-          setNotice('Historical SEC Form D archive is indexed and searchable.');
+          try {
+            await loadFounders(0, controller.signal);
+            if (!controller.signal.aborted) setNotice('Historical SEC Form D archive is indexed and searchable.');
+          } catch (failure) { if (!controller.signal.aborted) setError(errorMessage(failure)); }
         } else if (next.error) setError(next.error);
       } catch (failure) {
-        if (!controller.signal.aborted) setError(errorMessage(failure));
+        if (!controller.signal.aborted) {
+          setHistoryPollError(errorMessage(failure));
+          setHistoryPollNeedsSignIn(failure instanceof ApiError && failure.status === 401);
+          if (retryable(failure)) timer = setTimeout(poll, 5000);
+        }
       }
     };
     void poll();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [data?.database.historical.status, loadFounders]);
+  }, [data?.database.historical.status, historyPollRetry, loadFounders]);
 
   async function search(event: FormEvent) {
     event.preventDefault();
+    if (loading || searching) return;
     if (query.trim().length === 1) { setError('Search with at least two characters.'); return; }
     setSearching(true); setError(''); setNotice('');
     try { await loadFounders(0); }
@@ -252,7 +287,7 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
   const isShortlisted = (id: string) => shortlistItems.some(item => item.id === id);
   const toggleShortlist = (item: Founder) => setShortlistItems(rows => rows.some(row => row.id === item.id) ? rows.filter(row => row.id !== item.id) : [item, ...rows]);
   const currentDraftReady = !!outreach;
-  const runStatus = !run ? 'No match yet' : activeRun ? 'Researching' : run.status === 'completed' ? 'Ready to review' : run.status === 'partial' ? 'Some results ready' : run.status === 'failed' ? 'Needs another try' : 'Stopped';
+  const runStatus = !run ? historyLoading ? 'Loading saved research' : 'No match yet' : activeRun ? 'Researching' : run.status === 'completed' ? 'Ready to review' : run.status === 'partial' ? 'Some results ready' : run.status === 'failed' ? 'Needs another try' : 'Stopped';
 
   return <WorkflowShell section="investors"><main className="vc-page">
     <header className="vc-titlebar">
@@ -268,6 +303,7 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
     </nav>
 
     {error ? <div className="vc-alert" role="alert"><span aria-hidden="true">!</span><div><strong>We couldn’t finish that step.</strong><p>{error}</p><button type="button" onClick={() => setError('')}>Dismiss</button></div></div> : null}
+    {historyLoadError ? <div className="vc-alert" role="alert"><span aria-hidden="true">!</span><div><strong>Saved match history couldn’t load.</strong><p>{historyLoadError}</p>{historyLoadError.includes('sign-in expired') ? <a href="/login">Sign in again</a> : <button type="button" onClick={() => setHistoryLoadRetry(value => value + 1)}>Retry saved history</button>}</div></div> : null}
     {notice ? <div className="vc-notice" role="status"><VcIcon kind="check"/>{notice}</div> : null}
 
     <section className="vc-data-settings">
@@ -277,6 +313,7 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
           <p>Cypher uses public SEC Form D filings. A person is labeled a founder only when the filing explicitly says founder or co-founder.</p>
           <div className="vc-data-facts"><span><b>{(data?.database.explicit_founder_signals ?? 0).toLocaleString()}</b> filed founder signals</span><span><b>{data?.database.quarter_count ?? 0}</b> SEC quarters indexed</span><span>Last updated <b>{dateLabel(data?.database.snapshot_built_at)}</b></span></div>
           {data?.database.historical.status === 'running' || data?.database.historical.status === 'pending' ? <p className="vc-history-progress">{data.database.historical.processed_quarters.toLocaleString()} of {data.database.historical.total_quarters.toLocaleString()} historical quarters indexed{data.database.historical.current_quarter ? ' · working on ' + data.database.historical.current_quarter.toUpperCase() : ''}</p> : null}
+          {historyPollError ? <p className="vc-inline-error" role="alert">{historyPollError} {historyPollNeedsSignIn ? <a href="/login">Sign in again</a> : <button type="button" onClick={() => setHistoryPollRetry(value => value + 1)}>Retry status check</button>}</p> : null}
           {data?.database.historical.status === 'failed' ? <p className="vc-inline-error">The archive import paused. You can safely resume it.</p> : null}
           <div className="vc-data-actions">
             <button type="button" onClick={() => void startSecRefresh()} disabled={starting || activeRun}>{starting ? 'Starting…' : data?.database.snapshot_ready ? 'Refresh recent SEC data' : 'Get recent SEC data'}</button>
@@ -319,7 +356,7 @@ export default function VcProspectingWorkspace({ accountId }: { accountId?: stri
               <label>State<input value={state} onChange={event => setState(event.target.value)} placeholder="Any state" maxLength={80} /></label>
               <label className="vc-checkbox"><input type="checkbox" checked={founderOnly} onChange={event => setFounderOnly(event.target.checked)} /> Founder titles only</label>
             </div></details>
-            <button className="vc-search-button" type="submit" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
+            <button className="vc-search-button" type="submit" disabled={searching || loading}>{searching ? 'Searching…' : 'Search'}</button>
           </form>
         </> : null}
 
