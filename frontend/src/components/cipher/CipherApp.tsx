@@ -19,7 +19,7 @@ const KINDS: { id: SignalKind; label: string }[] = [
   { id: 'hiring', label: 'Hiring' }, { id: 'raising', label: 'Raising' }, { id: 'spending', label: 'Spending' }, { id: 'news', label: 'Momentum' },
 ];
 const STAGES: { id: Stage; label: string }[] = [
-  { id: 'drafted', label: 'Ready to send' }, { id: 'sent', label: 'In sequence' }, { id: 'replied', label: 'Replied' }, { id: 'meeting', label: 'Meeting booked' },
+  { id: 'drafted', label: 'Ready to send' }, { id: 'sent', label: 'Sent' }, { id: 'replied', label: 'Replied' }, { id: 'meeting', label: 'Meeting booked' },
 ];
 const stageLabel = (stage: Stage) => STAGES.find(s => s.id === stage)?.label ?? 'Queued';
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -49,6 +49,8 @@ export default function CipherApp() {
   const [serverAi, setServerAi] = useState(false);
   const [aiBusy, setAiBusy] = useState<string[]>([]);
   const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
+  const [dispatching, setDispatching] = useState(false);
+  const dispatchInFlight = useRef(false);
   const [question, setQuestion] = useState('');
   const [chat, setChat] = useState<ChatMsg[]>([{ role: 'assistant', text: GREETING }]);
   const threadRef = useRef<HTMLOListElement>(null);
@@ -211,8 +213,15 @@ export default function CipherApp() {
   }
 
   async function launch(targets: Lead[]) {
-    if (!targets.length) return;
-    if (webhook.trim()) {
+    if (!targets.length || dispatchInFlight.current) return;
+    dispatchInFlight.current = true;
+    setDispatching(true);
+    try {
+      if (!webhook.trim()) {
+        log('Not sent: add a sending webhook in Setup before starting a sequence.', 'warn');
+        setToast('Not sent. Add a sending webhook in Setup.');
+        return;
+      }
       const payload = { source: 'cipher', persona, offering, leads: targets.map(l => ({ company: l.company.name, ticker: l.company.ticker, domain: l.company.domain, score: l.score, tier: l.tier, why: l.why, subject: l.email.subject, body: l.email.body, sequence: l.sequence })) };
       let detail = 'Your sending tool could not be reached.';
       try {
@@ -224,10 +233,13 @@ export default function CipherApp() {
         log(`Not sent: ${detail} Check the webhook in Setup.`, 'warn');
         setToast('Not sent. Check the webhook in Setup.'); return;
       }
-    } else log(`Started ${targets.length} sequence${targets.length > 1 ? 's' : ''}. Add a webhook in Setup to send through your own tool.`, 'good');
-    const now = new Date().toISOString();
-    setLeads(ls => ls.map(l => (targets.some(t => t.id === l.id) ? { ...l, stage: 'sent', sentAt: now } : l)));
-    setToast(`${targets.length} sequence${targets.length > 1 ? 's' : ''} started`);
+      const now = new Date().toISOString();
+      setLeads(ls => ls.map(l => (targets.some(t => t.id === l.id) ? { ...l, stage: 'sent', sentAt: now } : l)));
+      setToast(`${targets.length} sequence${targets.length > 1 ? 's' : ''} started`);
+    } finally {
+      dispatchInFlight.current = false;
+      setDispatching(false);
+    }
   }
 
   function exportCsv() {
@@ -279,7 +291,7 @@ export default function CipherApp() {
               <label className="cx-field" htmlFor="cx-hook"><span>Send via</span><input id="cx-hook" type="url" value={webhook} placeholder="Webhook from Zapier, Make, Clay or Base44" onChange={e => setWebhook(e.target.value)} /></label>
             </div>
           ) : null}
-          <button className="cx-run" type="submit" disabled={running || !offering.trim()}>{running ? 'Running…' : 'Run Outbound'}</button>
+          <button className="cx-run" type="submit" disabled={running || dispatching || !offering.trim()}>{running ? 'Running…' : 'Run Outbound'}</button>
           <div className="cx-progress">
             <div className="cx-track" aria-hidden="true"><span style={{ '--cx-progress': `${territory.length ? leads.length / territory.length : 0}` } as CSSProperties} /></div>
             <span className={running ? 'cx-status live' : 'cx-status'} role="status">{running ? status : ''}</span>
@@ -301,7 +313,7 @@ export default function CipherApp() {
               <div><dt>Hot</dt><dd>{count('Hot')}</dd></div>
               <div><dt>Warm</dt><dd>{count('Warm')}</dd></div>
               <div><dt>Signals</dt><dd>{leads.reduce((n, l) => n + l.signals.length, 0)}</dd></div>
-              <div><dt>In sequence</dt><dd>{launched}</dd></div>
+              <div><dt>Sent</dt><dd>{launched}</dd></div>
               <div><dt>Meetings</dt><dd>{meetings}</dd></div>
             </dl>
           </div>
@@ -313,11 +325,11 @@ export default function CipherApp() {
                   {(['All', 'Hot', 'Warm', 'Watch'] as const).map(f => <button type="button" key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</button>)}
                 </div>
                 <div className="cx-tools-right">
-                  <button type="button" className="cx-btn cx-ai-btn" disabled={running || !!aiProgress || !leads.length} onClick={() => void research(ranked)}>
+                  <button type="button" className="cx-btn cx-ai-btn" disabled={running || !!aiProgress || dispatching || !leads.length} onClick={() => void research(ranked)}>
                     {aiProgress ? `Researching ${aiProgress.done}/${aiProgress.total}…` : 'Research with AI'}
                   </button>
-                  <button type="button" className="cx-act" disabled={running || !readyHot.length} onClick={() => void launch(readyHot)}>
-                    {readyHot.length ? `Start ${readyHot.length} hot sequence${readyHot.length > 1 ? 's' : ''}` : count('Hot') ? 'Hot sequences started' : 'Start hot sequences'}
+                  <button type="button" className="cx-act" disabled={running || dispatching || !readyHot.length} onClick={() => void launch(readyHot)}>
+                    {dispatching ? 'Starting sequence…' : readyHot.length ? `Start ${readyHot.length} hot sequence${readyHot.length > 1 ? 's' : ''}` : count('Hot') ? 'Hot sequences started' : 'Start hot sequences'}
                   </button>
                 </div>
               </div>
@@ -521,12 +533,12 @@ export default function CipherApp() {
 
             <footer>
               <button type="button" className="cx-btn" disabled={!!aiProgress} onClick={() => void research([lead])}>{aiBusy.includes(lead.id) ? 'Researching…' : lead.ai ? 'Research again' : 'Research with AI'}</button>
-              {lead.stage === 'drafted' ? <button type="button" className="cx-act" onClick={() => void launch([lead])}>Start sequence</button> : null}
-              {lead.stage === 'drafted' ? <a className="cx-btn" href={`https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(lead.email.subject)}&body=${encodeURIComponent(lead.email.body)}`} target="_blank" rel="noreferrer" onClick={() => move(lead, 'sent')}>Open in Gmail</a> : null}
+              {lead.stage === 'drafted' ? <button type="button" className="cx-act" disabled={dispatching} onClick={() => void launch([lead])}>{dispatching ? 'Starting…' : 'Start sequence'}</button> : null}
+              {lead.stage === 'drafted' ? <><a className="cx-btn" href={`https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(lead.email.subject)}&body=${encodeURIComponent(lead.email.body)}`} target="_blank" rel="noreferrer">Open in Gmail</a><button type="button" className="cx-btn" disabled={dispatching} title="Choose after sending the email in Gmail" onClick={() => move(lead, 'sent')}>Mark as sent</button></> : null}
               <button type="button" className="cx-btn" onClick={() => void copyEmail(lead)}>Copy email</button>
               {lead.stage === 'sent' ? <button type="button" className="cx-btn" onClick={() => move(lead, 'replied')}>Mark replied</button> : null}
               {lead.stage === 'sent' || lead.stage === 'replied' ? <button type="button" className="cx-act" onClick={() => move(lead, 'meeting')}>Meeting booked</button> : null}
-              {lead.sentAt ? <span className="cx-status">Started {new Date(lead.sentAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span> : null}
+              {lead.sentAt ? <span className="cx-status">Sent {new Date(lead.sentAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span> : null}
             </footer>
           </article>
         </div>
