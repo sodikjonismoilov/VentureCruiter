@@ -148,7 +148,6 @@ export function BotRoster({ bots, selectedBot, onSelectBot, onCreateNew, rooms, 
         <nav className="workspace-destinations" aria-label="Workspace tools">
           <a className="preferences-nav" href="/prospecting" aria-label="Prospecting"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4M8 10.5h5m-2.5-2.5v5"/></svg><span>Prospecting</span></a>
           <button className="preferences-nav" onClick={onComputer} aria-label="Computer"><svg viewBox="0 0 24 24"><path d="M3 4h18v13H3zM8 21h8m-4-4v4"/></svg><span>Computer</span></button>
-          <button className="preferences-nav" onClick={onSetup} aria-label="Connection setup"><svg viewBox="0 0 24 24"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg><span>Connection setup</span></button>
           <button className="preferences-nav" onClick={onWorkspace} aria-label="Workspace library"><svg viewBox="0 0 24 24"><path d="M4 4h6v16H4zM14 4h6v16h-6z"/></svg><span>Memory, skills &amp; routines</span></button>
           <button className="preferences-nav" onClick={onGoals} aria-label="Goals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 8-8"/></svg><span>Goals</span></button>
         </nav>
