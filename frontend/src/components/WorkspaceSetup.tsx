@@ -6,8 +6,10 @@ type ConnectionSettings = { models?: { manageUrl?: string } };
 const CHECK_LABELS: Record<string, string> = { starter_plugins: 'Starter plugin connections', media_openai: 'OpenAI image generation', fleet: 'Agent orchestration', model: 'GPT-6.1 Sol', fallback: 'GPT-6 Luna', mcp: 'MCP tool call', browser: 'Hosted browser', computer: 'Cloud computer' };
 export function WorkspaceSetup({ onClose }: { onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const mounted = useRef(false);
+  const checkSequence = useRef(0);
   const [detail, setDetail] = useState<Runtime>({});
-  const [status, setStatus] = useState('checking');
+  const [status, setStatus] = useState<'checking'|'connected'|'disconnected'|'unavailable'>('checking');
   const [error, setError] = useState('');
   const [omnirouteManageUrl, setOmnirouteManageUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -16,16 +18,19 @@ export function WorkspaceSetup({ onClose }: { onClose: () => void }) {
   const requestStatus = detail.checks?.check_request?.status;
   const pending = submitting || requestStatus === 'pending' || requestStatus === 'running' || detail.model_connections?.some(item => item.state === 'checking');
   async function check() {
+    const sequence = ++checkSequence.current;
     try {
       const [response, connectionResponse] = await Promise.all([
         fetch('/api/runtime', { cache: 'no-store' }),
         fetch('/api/connections', { cache: 'no-store' }),
       ]);
+      if (!response.ok) throw new Error('Could not refresh cloud status.');
       const data = await response.json();
       const settings = await connectionResponse.json().catch((): ConnectionSettings => ({}));
+      if (!mounted.current || sequence !== checkSequence.current) return;
       setDetail(data); setOmnirouteManageUrl(settings.models?.manageUrl || ''); setStatus(data.connected ? 'connected' : 'disconnected');
     }
-    catch { setStatus('disconnected'); }
+    catch { if (mounted.current && sequence === checkSequence.current) setStatus('unavailable'); }
   }
   async function runChecks() {
     setSubmitting(true); setError('');
@@ -33,10 +38,11 @@ export function WorkspaceSetup({ onClose }: { onClose: () => void }) {
       const response = await fetch('/api/runtime/checks', { method: 'POST' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Could not queue cloud checks.');
+      if (!mounted.current) return;
       setDetail(previous => ({ ...previous, checks: { ...previous.checks, check_request: { status: data.status } } }));
       await check();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not queue cloud checks.'); }
-    finally { setSubmitting(false); }
+    } catch (failure) { if (mounted.current) setError(failure instanceof Error ? failure.message : 'Could not queue cloud checks.'); }
+    finally { if (mounted.current) setSubmitting(false); }
   }
   async function testGemini() {
     setGeminiTest('running'); setGeminiMessage('');
@@ -44,12 +50,14 @@ export function WorkspaceSetup({ onClose }: { onClose: () => void }) {
       const response = await fetch('/api/runtime/models/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'gemini', model: 'gemini-3.8-flash' }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Gemini could not be verified. Check the OmniRoute provider and try again.');
+      if (!mounted.current) return;
       setGeminiTest('passed'); setGeminiMessage('Gemini 3.8 Flash replied through the configured model route.');
     } catch (failure) {
+      if (!mounted.current) return;
       setGeminiTest('failed'); setGeminiMessage(failure instanceof Error ? failure.message : 'Gemini could not be verified. Check the provider connection and try again.');
     }
   }
-  useEffect(() => { const previous = document.activeElement as HTMLElement; dialog.current?.showModal(); void check(); return () => { dialog.current?.close(); previous?.focus(); }; }, []);
+  useEffect(() => { mounted.current = true; const previous = document.activeElement as HTMLElement; dialog.current?.showModal(); void check(); return () => { mounted.current = false; dialog.current?.close(); previous?.focus(); }; }, []);
   useEffect(() => { const timer = setInterval(() => void check(), pending ? 3000 : 5000); return () => clearInterval(timer); }, [pending]);
   const workerUpdating = detail.worker_version_matches === false;
   const modelPassed = detail.checks?.model?.status === 'passed';
@@ -57,7 +65,7 @@ export function WorkspaceSetup({ onClose }: { onClose: () => void }) {
   return <dialog ref={dialog} className="bot-dialog setup-dialog" aria-labelledby="setup-title" onCancel={onClose}>
     <h2 id="setup-title">Your cloud workspace</h2><p className="dialog-intro">One setup. Then work from any device.</p>
     <div className="agent-form"><div className="agent-form-fields">
-      <div className="connection-state" data-state={status}><span className="connection-dot"/><div><strong>{status === 'checking' ? 'Checking connection…' : detail.connected ? detail.worker ? 'Cloud workspace connected' : 'Cloud API connected · worker not ready' : 'Cloud runtime not connected'}</strong><p>{detail.connected ? 'Database and worker readiness are separate from model and tool access.' : 'Agents need a reachable hosted runtime before they can work.'}</p></div></div>
+      <div className="connection-state" data-state={status}><span className="connection-dot"/><div><strong>{status === 'checking' ? 'Checking connection…' : status === 'unavailable' ? 'Cloud status unavailable' : detail.connected ? detail.worker ? 'Cloud workspace connected' : 'Cloud API connected · worker not ready' : 'Cloud runtime not connected'}</strong><p>{status === 'unavailable' ? 'Could not refresh the connection status. Try again.' : detail.connected ? 'Database and worker readiness are separate from model and tool access.' : 'Agents need a reachable hosted runtime before they can work.'}</p></div></div>
       {detail.model_transport !== 'omniroute' ? <section className="provider-setup" aria-labelledby="gemini-setup-title">
         <h3 id="gemini-setup-title">Connect Gemini</h3>
         <p>Add your Gemini API key in Model access below. We verify it with a short model request and use it directly for Gemini calls.</p>
