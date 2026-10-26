@@ -224,12 +224,13 @@ export default function ProspectingWorkspace() {
     if (voiceState === 'playing') { stopVoice(); return; }
     if (voiceState !== 'ready' && voiceState !== 'error') return;
     setVoiceState('loading'); setVoiceError('');
+    let failureMessage = 'Voice preview could not be played. Try again later.';
     try {
       const response = await fetch('/api/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: CYPHER_VOICE_INTRO }) });
       if (!response.ok) {
-        const detail = await response.json().catch(() => ({}));
         if (response.status === 503) { setVoiceState('setup'); setVoiceError(''); return; }
-        throw new Error(typeof detail.detail === 'string' ? detail.detail : 'Voice could not be generated. Try again.');
+        failureMessage = response.status === 429 ? 'Voice preview reached its usage limit. Try again later.' : 'Voice preview could not be generated. Try again later.';
+        throw new Error(failureMessage);
       }
       const audioUrl = URL.createObjectURL(await response.blob());
       voiceObjectUrl.current = audioUrl;
@@ -278,16 +279,16 @@ export default function ProspectingWorkspace() {
         if (voiceAudio.current !== audio) return;
         voiceAudio.current = null; URL.revokeObjectURL(audioUrl); voiceObjectUrl.current = '';
         clearVoiceMeter();
-        setVoiceError('The audio could not play. Try again.'); setVoiceState('error');
+        setVoiceError('Voice preview could not be played. Try again.'); setVoiceState('error');
       };
       setVoiceState('playing');
       await audio.play();
-    } catch (failure) {
+    } catch {
       voiceAudio.current?.pause(); voiceAudio.current = null;
       if (voiceObjectUrl.current) URL.revokeObjectURL(voiceObjectUrl.current);
       voiceObjectUrl.current = '';
       clearVoiceMeter();
-      setVoiceError(errorText(failure)); setVoiceState('error');
+      setVoiceError(failureMessage); setVoiceState('error');
     }
   }
 
@@ -304,10 +305,10 @@ export default function ProspectingWorkspace() {
         <button type="button" className={`cx-voice-button is-${voiceState}`} onClick={() => void playVoice()} disabled={voiceState === 'checking' || voiceState === 'setup' || voiceState === 'loading'} aria-pressed={voiceState === 'playing'}>
           <CypherMark className="cx-voice-mark" decorative level={voiceLevel}/>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 9v6h3.7l4.8 4V5l-4.8 4H4.5z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a7.5 7.5 0 010 11"/></svg>
-          {voiceState === 'checking' ? 'Checking voice…' : voiceState === 'setup' ? 'Voice setup needed' : voiceState === 'loading' ? 'Preparing voice…' : voiceState === 'playing' ? 'Stop voice' : voiceState === 'error' ? 'Try voice again' : 'Listen to the welcome'}
+          {voiceState === 'checking' ? 'Checking voice…' : voiceState === 'setup' ? 'Voice preview unavailable' : voiceState === 'loading' ? 'Preparing voice…' : voiceState === 'playing' ? 'Stop voice' : voiceState === 'error' ? 'Try voice again' : 'Listen to the welcome'}
         </button>
-        {voiceState === 'setup' ? <span className="cx-voice-note" role="status">Add your ElevenLabs API key in Vercel to enable this.</span> : null}
-        {voiceError ? <span className="cx-voice-note" role="status">{voiceError}</span> : null}
+        {voiceState === 'setup' ? <span className="cx-voice-note" role="status">Voice preview is unavailable right now. You can still use company research.</span> : null}
+        {voiceError ? <span className="cx-voice-note" role="alert">{voiceError}</span> : null}
       </div>
       <form className="cx-command" onSubmit={understand} noValidate>
         <div className="cx-group">
